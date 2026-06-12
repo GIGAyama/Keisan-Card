@@ -4,22 +4,31 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>けいさんカード | GIGA山</title>
-  <meta name="description" content="小学1年生の計算カードをデジタルで。順番・バラバラの2モード、タイム計測、スワイプで○×判定。" />
+  <meta name="description" content="小学1年生の計算カードをデジタルで。順番・バラバラの2モード、タイム計測、スワイプ／キーボードで○×判定。" />
 
-  <!-- ===== Google Fonts（やさしい丸ゴシック＋ポップなタイトル用） ===== -->
+  <!-- ===== Google Fonts ===== -->
+  <!-- UI・見出し：Zen Kaku Gothic New（落ち着いた角ゴシック） -->
+  <!-- 計算式・数字：UDデジタル教科書体（無ければ Zen Maru Gothic にフォールバック） -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Mochiy+Pop+One&family=Kosugi+Maru&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Zen+Maru+Gothic:wght@500;700;900&family=Kosugi+Maru&display=swap" rel="stylesheet" />
 
   <!-- ===== Tailwind CSS（CDN版・ビルド不要） ===== -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    // Tailwind の設定。教科書体を最優先に、無ければ丸ゴシックにフォールバックします。
     tailwind.config = {
       theme: {
         extend: {
           fontFamily: {
-            // ふだんの文字（数字・本文）。Windowsの「UDデジタル教科書体」を最優先。
+            // ふだんのUI・見出し
+            sans: [
+              '"Zen Kaku Gothic New"',
+              '"Hiragino Kaku Gothic ProN"',
+              '"Noto Sans JP"',
+              'system-ui',
+              'sans-serif',
+            ],
+            // 計算式・数字（教科書体を最優先）
             textbook: [
               '"UD デジタル 教科書体 NK-R"',
               '"UD Digi Kyokasho NK-R"',
@@ -28,34 +37,20 @@
               '"Kosugi Maru"',
               'sans-serif',
             ],
-            // タイトルなど、楽しくポップに見せたい部分。
-            pop: ['"Mochiy Pop One"', '"Zen Maru Gothic"', 'sans-serif'],
           },
           keyframes: {
-            floaty: {
-              '0%,100%': { transform: 'translateY(0)' },
-              '50%': { transform: 'translateY(-10px)' },
+            rise: {
+              '0%': { transform: 'translateY(8px)', opacity: '0' },
+              '100%': { transform: 'translateY(0)', opacity: '1' },
             },
             pop: {
-              '0%': { transform: 'scale(0.6)', opacity: '0' },
-              '70%': { transform: 'scale(1.08)', opacity: '1' },
-              '100%': { transform: 'scale(1)' },
-            },
-            wiggle: {
-              '0%,100%': { transform: 'rotate(-3deg)' },
-              '50%': { transform: 'rotate(3deg)' },
-            },
-            shimmer: {
-              '0%': { backgroundPosition: '0% 50%' },
-              '50%': { backgroundPosition: '100% 50%' },
-              '100%': { backgroundPosition: '0% 50%' },
+              '0%': { transform: 'scale(0.92)', opacity: '0' },
+              '100%': { transform: 'scale(1)', opacity: '1' },
             },
           },
           animation: {
-            floaty: 'floaty 3s ease-in-out infinite',
-            pop: 'pop 0.35s ease-out',
-            wiggle: 'wiggle 0.6s ease-in-out infinite',
-            shimmer: 'shimmer 8s ease infinite',
+            rise: 'rise 0.35s ease-out both',
+            pop: 'pop 0.25s ease-out both',
           },
         },
       },
@@ -73,20 +68,15 @@
     html, body, #root { height: 100%; }
     body {
       margin: 0;
-      /* ポップで楽しい、ゆっくり動くグラデーション背景 */
-      background: linear-gradient(120deg, #fef3c7, #fde68a, #bfdbfe, #fbcfe8, #bbf7d0);
-      background-size: 300% 300%;
-      animation: shimmer 14s ease infinite;
+      /* シンプルで落ち着いた背景 */
+      background-color: #f6f7f9;
+      color: #0f172a;
+      font-family: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
       -webkit-tap-highlight-color: transparent;
       overscroll-behavior: none;
     }
-    @keyframes shimmer {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
     /* 3Dカードめくり用 */
-    .flip-perspective { perspective: 1400px; }
+    .flip-perspective { perspective: 1600px; }
     .flip-inner { transform-style: preserve-3d; transition: transform 0.45s cubic-bezier(.2,.8,.2,1); }
     .flip-inner.is-flipped { transform: rotateY(180deg); }
     .flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
@@ -95,10 +85,9 @@
   </style>
 </head>
 <body>
-  <!-- アプリが表示される場所 -->
   <div id="root">
-    <div style="height:100%;display:flex;align-items:center;justify-content:center;font-family:sans-serif;color:#475569;">
-      よみこみ中…（インターネットに つながっているか かくにんしてね）
+    <div style="height:100%;display:flex;align-items:center;justify-content:center;color:#64748b;">
+      よみこみ中…
     </div>
   </div>
 

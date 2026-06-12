@@ -7,12 +7,15 @@
  *  ・きいろカード（たしざん／くりあがり・和が11〜18）
  *  ・みどりカード（ひきざん／くりさがり）
  *
- *  操作：カードをタップ → こたえが出る → 左にスワイプで「せいかい」/
- *        右にスワイプで「まちがい（さいごにもう一度）」。
- *  ぜんぶ正解するまでのタイムを自動で計測します。
+ *  操作（3つの方法に対応）：
+ *   1) カードをタップ → こたえが出る → 左スワイプ＝せいかい／右スワイプ＝もう一度
+ *   2) こたえを みる／○／× のボタン
+ *   3) キーボード：スペース（またはEnter）＝めくる／← せいかい／→ もう一度
+ *
+ *  まちがえたカードは最後にもう一度出題され、ぜんぶ正解するまでの
+ *  タイムを自動で計測します。ベストタイムはブラウザに保存されます。
  *
  *  ※ このファイル1つに、すべての画面・ロジック・スタイルが入っています。
- *    ライブラリの読み込みは index.html がやっています。
  * ===================================================================== */
 
 const { useState, useEffect, useRef, useCallback } = React;
@@ -68,66 +71,65 @@ function makeGreenCards() {
   return cards;
 }
 
-// 4種類のカードの設定をまとめておきます。
+// 4種類のカードの設定。色は実物の計算カードに合わせています。
 const DECKS = {
   red: {
     id: 'red',
     name: 'あかカード',
     sub: 'たしざん（くりあがり なし）',
-    emoji: '🍎',
+    symbol: '＋',
     make: makeRedCards,
-    // 配色（Tailwindのクラスを直接書いて、色ごとに見た目を変えます）
-    bg: 'bg-red-500',
-    bgSoft: 'bg-red-50',
-    text: 'text-red-600',
-    ring: 'ring-red-400',
-    border: 'border-red-400',
-    grad: 'from-red-400 to-rose-500',
+    bg: 'bg-rose-500',
+    frontText: 'text-white',
+    text: 'text-rose-600',
+    border: 'border-rose-200',
+    ring: 'ring-rose-400',
+    bar: 'bg-rose-500',
   },
   blue: {
     id: 'blue',
     name: 'あおカード',
     sub: 'ひきざん（くりさがり なし）',
-    emoji: '🐬',
+    symbol: '－',
     make: makeBlueCards,
     bg: 'bg-sky-500',
-    bgSoft: 'bg-sky-50',
+    frontText: 'text-white',
     text: 'text-sky-600',
+    border: 'border-sky-200',
     ring: 'ring-sky-400',
-    border: 'border-sky-400',
-    grad: 'from-sky-400 to-blue-500',
+    bar: 'bg-sky-500',
   },
   yellow: {
     id: 'yellow',
     name: 'きいろカード',
     sub: 'たしざん（くりあがり あり）',
-    emoji: '🌟',
+    symbol: '＋',
     make: makeYellowCards,
     bg: 'bg-amber-400',
-    bgSoft: 'bg-amber-50',
+    frontText: 'text-slate-800', // 黄色は文字を濃くして読みやすく
     text: 'text-amber-600',
+    border: 'border-amber-200',
     ring: 'ring-amber-400',
-    border: 'border-amber-400',
-    grad: 'from-amber-300 to-yellow-500',
+    bar: 'bg-amber-400',
   },
   green: {
     id: 'green',
     name: 'みどりカード',
     sub: 'ひきざん（くりさがり あり）',
-    emoji: '🍀',
+    symbol: '－',
     make: makeGreenCards,
     bg: 'bg-emerald-500',
-    bgSoft: 'bg-emerald-50',
+    frontText: 'text-white',
     text: 'text-emerald-600',
+    border: 'border-emerald-200',
     ring: 'ring-emerald-400',
-    border: 'border-emerald-400',
-    grad: 'from-emerald-400 to-green-500',
+    bar: 'bg-emerald-500',
   },
 };
 
 const DECK_ORDER = ['red', 'blue', 'yellow', 'green'];
 
-// 各カードの枚数を最初に1回だけ計算しておきます（表示用）。
+// 各カードの枚数を最初に1回だけ計算（表示用）。
 const DECK_COUNTS = DECK_ORDER.reduce((acc, id) => {
   acc[id] = DECKS[id].make().length;
   return acc;
@@ -158,10 +160,106 @@ function formatTime(ms) {
 }
 
 /* =====================================================================
- *  3. カスタムフック（ロジックを部品にして、UIと切り離します）
+ *  3. アイコン（絵文字のかわりに、シンプルな線画SVGを使います）
+ * ===================================================================== */
+function Icon({ path, size = 22, className = '', fill = false }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill={fill ? 'currentColor' : 'none'}
+      stroke={fill ? 'none' : 'currentColor'}
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      {path}
+    </svg>
+  );
+}
+const ICON = {
+  gear: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V15z" />
+    </>
+  ),
+  check: <polyline points="20 6 9 17 4 12" />,
+  close: (
+    <>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </>
+  ),
+  arrowLeft: (
+    <>
+      <line x1="19" y1="12" x2="5" y2="12" />
+      <polyline points="12 19 5 12 12 5" />
+    </>
+  ),
+  arrowRight: (
+    <>
+      <line x1="5" y1="12" x2="19" y2="12" />
+      <polyline points="12 5 19 12 12 19" />
+    </>
+  ),
+  list: (
+    <>
+      <line x1="8" y1="6" x2="21" y2="6" />
+      <line x1="8" y1="12" x2="21" y2="12" />
+      <line x1="8" y1="18" x2="21" y2="18" />
+      <line x1="3" y1="6" x2="3.01" y2="6" />
+      <line x1="3" y1="12" x2="3.01" y2="12" />
+      <line x1="3" y1="18" x2="3.01" y2="18" />
+    </>
+  ),
+  shuffle: (
+    <>
+      <polyline points="16 3 21 3 21 8" />
+      <line x1="4" y1="20" x2="21" y2="3" />
+      <polyline points="21 16 21 21 16 21" />
+      <line x1="15" y1="15" x2="21" y2="21" />
+      <line x1="4" y1="4" x2="9" y2="9" />
+    </>
+  ),
+  home: (
+    <>
+      <path d="M3 9.5 12 3l9 6.5" />
+      <path d="M5 10v10h14V10" />
+    </>
+  ),
+  replay: (
+    <>
+      <polyline points="1 4 1 10 7 10" />
+      <path d="M3.5 15a9 9 0 1 0 2.1-9.4L1 10" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 15 14" />
+    </>
+  ),
+  play: <polygon points="6 4 20 12 6 20 6 4" />,
+  trophy: (
+    <>
+      <path d="M8 21h8" />
+      <path d="M12 17v4" />
+      <path d="M7 4h10v4a5 5 0 0 1-10 0V4z" />
+      <path d="M17 5h3v2a3 3 0 0 1-3 3" />
+      <path d="M7 5H4v2a3 3 0 0 0 3 3" />
+    </>
+  ),
+};
+
+/* =====================================================================
+ *  4. カスタムフック（ロジックを部品にして、UIと切り離します）
  * ===================================================================== */
 
-// 3-1. LocalStorage に値を保存・復元するフック（ベストタイムの記録に使用）
+// 4-1. LocalStorage に値を保存・復元するフック
 function useLocalStorage(key, initialValue) {
   const [value, setValue] = useState(() => {
     try {
@@ -183,7 +281,7 @@ function useLocalStorage(key, initialValue) {
   return [value, setValue];
 }
 
-// 3-2. ストップウォッチのフック
+// 4-2. ストップウォッチのフック
 function useTimer() {
   const [elapsed, setElapsed] = useState(0);
   const [running, setRunning] = useState(false);
@@ -222,15 +320,11 @@ function useTimer() {
   return { elapsed, running, start, stop, reset };
 }
 
-// 3-3. カードの山（デッキ）を管理するフック
-//   ・順番／バラバラでカードを並べる
-//   ・まちがえたカードは山の最後にもう一度ならべる
+// 4-3. カードの山（デッキ）を管理するフック
 function useCardDeck(deckId, mode) {
-  // 初期キューを作る関数
   const buildQueue = useCallback(() => {
     const base = DECKS[deckId].make();
     const ordered = mode === 'shuffle' ? shuffle(base) : base;
-    // 各カードに通し番号を付けて、再出題しても区別できるようにします。
     return ordered.map((c, i) => ({ ...c, key: `${deckId}-${i}` }));
   }, [deckId, mode]);
 
@@ -251,7 +345,6 @@ function useCardDeck(deckId, mode) {
   }, []);
 
   // 「まちがい」：このカードを山の最後（retry）へ回す
-  //   いまの山を出し切ったあとに合流させます（＝もう一度出題）。
   const markWrong = useCallback(() => {
     if (!current) return;
     setQueue((q) => q.slice(1));
@@ -259,22 +352,13 @@ function useCardDeck(deckId, mode) {
     setMistakes((m) => m + 1);
   }, [current]);
 
-  // いまの山が空になったら、まちがえた山を新しい山として合流（もう一度出題）
+  // いまの山が空になったら、まちがえた山を合流（＝もう一度出題）
   useEffect(() => {
     if (queue.length === 0 && retry.length > 0) {
       setQueue(shuffleIfNeeded(retry, mode));
       setRetry([]);
     }
   }, [queue.length, retry, mode]);
-
-  const restart = useCallback(() => {
-    const q = buildQueue();
-    totalRef.current = q.length;
-    setQueue(q);
-    setRetry([]);
-    setDone(0);
-    setMistakes(0);
-  }, [buildQueue]);
 
   return {
     current,
@@ -285,24 +369,21 @@ function useCardDeck(deckId, mode) {
     remaining: queue.length + retry.length,
     markCorrect,
     markWrong,
-    restart,
   };
 }
 
-// retry の山は、バラバラモードのときだけまたシャッフルします。
 function shuffleIfNeeded(cards, mode) {
   return mode === 'shuffle' ? shuffle(cards) : cards;
 }
 
-// 3-4. スワイプ操作のフック（指でもマウスでも動きます）
-//   左へ → onLeft（せいかい）／右へ → onRight（まちがい）
+// 4-4. スワイプ操作のフック（指でもマウスでも動きます）
+//   左へ → onLeft（せいかい）／右へ → onRight（もう一度）
 function useSwipe({ enabled, onLeft, onRight }) {
-  const [dx, setDx] = useState(0);     // 横の移動量（見た目用）
+  const [dx, setDx] = useState(0);
   const [dragging, setDragging] = useState(false);
   const startX = useRef(0);
   const active = useRef(false);
-
-  const THRESHOLD = 90; // この距離より動かしたら判定
+  const THRESHOLD = 96;
 
   const onPointerDown = (e) => {
     if (!enabled) return;
@@ -311,12 +392,10 @@ function useSwipe({ enabled, onLeft, onRight }) {
     startX.current = e.clientX;
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
-
   const onPointerMove = (e) => {
     if (!active.current) return;
     setDx(e.clientX - startX.current);
   };
-
   const finish = () => {
     if (!active.current) return;
     active.current = false;
@@ -324,7 +403,7 @@ function useSwipe({ enabled, onLeft, onRight }) {
     setDx((cur) => {
       if (cur <= -THRESHOLD) onLeft?.();
       else if (cur >= THRESHOLD) onRight?.();
-      return 0; // 位置を元に戻す
+      return 0;
     });
   };
 
@@ -335,41 +414,52 @@ function useSwipe({ enabled, onLeft, onRight }) {
     onPointerCancel: finish,
     onPointerLeave: finish,
   };
-
   return { dx, dragging, handlers, threshold: THRESHOLD };
 }
 
 /* =====================================================================
- *  4. 画面の部品（コンポーネント）
+ *  5. 画面の部品（コンポーネント）
  * ===================================================================== */
 
-// 4-1. ヘッダー（指定のTailwindクラスをベースに作成）
-function Header({ onHome, onOpenSettings, title }) {
+// アプリのロゴマーク（4色のカードを表す 2×2 のタイル）
+function Logo({ size = 28 }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
+      <rect x="2" y="2" width="9" height="9" rx="2.6" fill="#f43f5e" />
+      <rect x="13" y="2" width="9" height="9" rx="2.6" fill="#0ea5e9" />
+      <rect x="2" y="13" width="9" height="9" rx="2.6" fill="#f59e0b" />
+      <rect x="13" y="13" width="9" height="9" rx="2.6" fill="#10b981" />
+    </svg>
+  );
+}
+
+// 5-1. ヘッダー（指定のTailwindクラスをベースに作成）
+function Header({ onHome, onOpenSettings }) {
   return (
     <nav className="bg-white border-b-4 border-amber-500 px-6 py-2.5 flex justify-between items-center shadow-sm z-10">
       <button
         onClick={onHome}
-        className="flex items-center gap-2 transition-all active:scale-95"
+        className="flex items-center gap-2.5 transition-all active:scale-95"
         title="さいしょの がめんに もどる"
       >
-        <span className="text-2xl sm:text-3xl">🧮</span>
-        <span className="font-pop text-lg sm:text-2xl text-amber-600 tracking-wide">
-          {title}
+        <Logo size={26} />
+        <span className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight">
+          けいさんカード
         </span>
       </button>
       <button
         onClick={onOpenSettings}
-        className="w-10 h-10 flex items-center justify-center rounded-full bg-amber-50 hover:bg-amber-100 text-amber-600 text-xl transition-all active:scale-95"
+        className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all active:scale-95"
         title="せってい"
         aria-label="せってい"
       >
-        ⚙️
+        <Icon path={ICON.gear} size={22} />
       </button>
     </nav>
   );
 }
 
-// 4-2. フッター（指定のTailwindクラスをベースに作成）
+// 5-2. フッター（指定のTailwindクラスをベースに作成）
 function Footer() {
   const year = new Date().getFullYear();
   return (
@@ -387,68 +477,86 @@ function Footer() {
   );
 }
 
-// 4-3. タイトル画面
+// 共通：白いカードのプライマリボタン
+function PrimaryButton({ children, className = '', ...props }) {
+  return (
+    <button
+      className={`inline-flex items-center justify-center gap-2 font-bold text-white px-7 py-3.5 rounded-xl shadow-sm hover:shadow transition-all active:scale-95 ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+// 5-3. タイトル画面
 function TitleScreen({ onStart }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-      <div className="animate-floaty">
-        <div className="text-7xl sm:text-8xl mb-4 drop-shadow">🧮</div>
+      <div className="animate-rise">
+        <Logo size={72} />
       </div>
-      <h1 className="font-pop text-4xl sm:text-6xl text-amber-600 drop-shadow-sm mb-3">
+      <h1 className="mt-6 text-4xl sm:text-5xl font-black text-slate-800 tracking-tight animate-rise">
         けいさんカード
       </h1>
-      <p className="font-textbook text-slate-600 text-base sm:text-lg mb-10 leading-relaxed">
-        カードを めくって、けいさんに ちょうせん！<br />
-        ぜんぶ こたえると タイムが でるよ。
+      <p className="mt-4 text-slate-500 text-base sm:text-lg leading-relaxed animate-rise">
+        計算カードを めくって、すらすら こたえよう。<br />
+        ぜんぶ こたえると タイムが でます。
       </p>
-      <button
+      <PrimaryButton
         onClick={onStart}
-        className="font-pop text-2xl sm:text-3xl text-white bg-gradient-to-r from-amber-400 to-orange-500 px-12 py-5 rounded-2xl shadow-lg hover:shadow-xl transition-all active:scale-95 animate-pop"
+        className="mt-10 bg-amber-500 hover:bg-amber-600 text-lg sm:text-xl px-10 py-4 animate-pop"
       >
-        ▶ はじめる
-      </button>
+        <Icon path={ICON.play} size={20} fill />
+        はじめる
+      </PrimaryButton>
     </div>
   );
 }
 
-// 4-4. カードの色をえらぶ画面
+// カードの色チップ（＋／− の記号入り）
+function DeckSwatch({ deck, size = 'w-14 h-14 text-3xl' }) {
+  return (
+    <div
+      className={`${size} ${deck.bg} ${deck.frontText} rounded-xl flex items-center justify-center font-textbook font-bold shrink-0 shadow-sm`}
+    >
+      {deck.symbol}
+    </div>
+  );
+}
+
+// 5-4. カードの色をえらぶ画面
 function SelectScreen({ onPick, bestTimes }) {
   return (
-    <div className="flex-1 flex flex-col items-center px-4 py-6 overflow-auto">
-      <h2 className="font-pop text-2xl sm:text-3xl text-slate-700 mb-1">
-        カードを えらんでね
-      </h2>
-      <p className="font-textbook text-slate-500 mb-6 text-sm sm:text-base">
-        やってみたい いろの カードを タップ！
+    <div className="flex-1 flex flex-col items-center px-4 py-8 overflow-auto">
+      <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">カードを えらぶ</h2>
+      <p className="text-slate-500 mt-2 mb-7 text-sm sm:text-base">
+        れんしゅうしたい いろの カードを えらんでください。
       </p>
-      <div className="grid grid-cols-2 gap-4 sm:gap-6 w-full max-w-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full max-w-2xl">
         {DECK_ORDER.map((id) => {
           const d = DECKS[id];
-          const count = DECK_COUNTS[id];
-          const best = bestTimes[id];
+          const best = minBest(bestTimes[id]);
           return (
             <button
               key={id}
               onClick={() => onPick(id)}
-              className={`group bg-white rounded-2xl shadow-sm hover:shadow-lg p-5 sm:p-6 flex flex-col items-center border-2 border-transparent hover:${d.border} transition-all active:scale-95`}
+              className="group bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 p-4 sm:p-5 flex items-center gap-4 text-left transition-all active:scale-95"
             >
-              <div
-                className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br ${d.grad} flex items-center justify-center text-3xl sm:text-4xl shadow-inner mb-3 group-hover:animate-wiggle`}
-              >
-                {d.emoji}
-              </div>
-              <div className="font-pop text-lg sm:text-xl text-slate-700">{d.name}</div>
-              <div className="font-textbook text-xs sm:text-sm text-slate-500 mt-0.5 text-center leading-tight">
-                {d.sub}
-              </div>
-              <div className="font-textbook text-xs text-slate-400 mt-2">
-                ぜんぶで {count}まい
-              </div>
-              {best && minBest(best) != null && (
-                <div className={`font-textbook text-xs ${d.text} mt-1 font-bold`}>
-                  🏆 ベスト {formatTime(minBest(best))}
+              <DeckSwatch deck={d} />
+              <div className="min-w-0">
+                <div className="text-lg font-bold text-slate-800">{d.name}</div>
+                <div className="text-sm text-slate-500 truncate">{d.sub}</div>
+                <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-400">
+                  <span>{DECK_COUNTS[id]}もん</span>
+                  {best != null && (
+                    <span className={`inline-flex items-center gap-1 font-bold ${d.text}`}>
+                      <Icon path={ICON.trophy} size={13} />
+                      {formatTime(best)}
+                    </span>
+                  )}
                 </div>
-              )}
+              </div>
             </button>
           );
         })}
@@ -457,13 +565,13 @@ function SelectScreen({ onPick, bestTimes }) {
   );
 }
 
-// ベストタイム表示用：記録の中から一番速いものを取り出します。
+// ベスト記録の中から一番速いものを取り出します。
 function minBest(best) {
   const vals = Object.values(best || {}).filter((v) => typeof v === 'number');
   return vals.length ? Math.min(...vals) : null;
 }
 
-// 4-5. モードをえらぶ画面（順番／バラバラ）
+// 5-5. モードをえらぶ画面（順番／バラバラ）
 function ModeScreen({ deckId, onPick, onBack, bestTimes }) {
   const d = DECKS[deckId];
   const best = bestTimes[deckId] || {};
@@ -471,68 +579,66 @@ function ModeScreen({ deckId, onPick, onBack, bestTimes }) {
     {
       id: 'order',
       title: 'じゅんばん',
-      emoji: '🔢',
-      desc: '小さい じゅんに 出るよ。\nまずは これで れんしゅう！',
+      icon: ICON.list,
+      desc: '小さい じゅんに 出ます。\nまずは これで れんしゅう。',
       best: best.order,
     },
     {
       id: 'shuffle',
       title: 'バラバラ',
-      emoji: '🎲',
-      desc: 'じゅんばんが ぐちゃぐちゃ。\nすらすら 言えるかな？',
+      icon: ICON.shuffle,
+      desc: 'じゅんばんが バラバラに 出ます。\nすらすら 言えるかな。',
       best: best.shuffle,
     },
   ];
   return (
-    <div className="flex-1 flex flex-col items-center px-4 py-6">
-      <div className="flex items-center gap-3 mb-1">
-        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${d.grad} flex items-center justify-center text-2xl shadow-inner`}>
-          {d.emoji}
-        </div>
-        <h2 className="font-pop text-2xl sm:text-3xl text-slate-700">{d.name}</h2>
+    <div className="flex-1 flex flex-col items-center px-4 py-8">
+      <div className="flex items-center gap-3">
+        <DeckSwatch deck={d} size="w-11 h-11 text-2xl" />
+        <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">{d.name}</h2>
       </div>
-      <p className="font-textbook text-slate-500 mb-8 text-sm sm:text-base">
-        どっちの モードで やる？
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-xl">
+      <p className="text-slate-500 mt-2 mb-7 text-sm sm:text-base">モードを えらんでください。</p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-xl">
         {modes.map((m) => (
           <button
             key={m.id}
             onClick={() => onPick(m.id)}
-            className="bg-white rounded-2xl shadow-sm hover:shadow-lg p-6 flex flex-col items-center transition-all active:scale-95 border-2 border-transparent hover:border-amber-400"
+            className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 p-6 flex flex-col items-center text-center transition-all active:scale-95"
           >
-            <div className="text-5xl mb-3">{m.emoji}</div>
-            <div className="font-pop text-xl text-slate-700 mb-1">{m.title}</div>
-            <div className="font-textbook text-sm text-slate-500 text-center whitespace-pre-line leading-relaxed">
-              {m.desc}
+            <div className={`w-12 h-12 rounded-xl ${d.bg} ${d.frontText} flex items-center justify-center mb-3`}>
+              <Icon path={m.icon} size={24} />
             </div>
+            <div className="text-xl font-bold text-slate-800 mb-1">{m.title}</div>
+            <div className="text-sm text-slate-500 whitespace-pre-line leading-relaxed">{m.desc}</div>
             {m.best != null && (
-              <div className={`font-textbook text-sm ${d.text} mt-3 font-bold`}>
-                🏆 ベスト {formatTime(m.best)}
+              <div className={`mt-3 inline-flex items-center gap-1 text-sm font-bold ${d.text}`}>
+                <Icon path={ICON.trophy} size={14} />
+                ベスト {formatTime(m.best)}
               </div>
             )}
           </button>
         ))}
       </div>
+
       <button
         onClick={onBack}
-        className="font-textbook text-slate-500 hover:text-slate-700 mt-8 px-5 py-2 rounded-xl bg-white shadow-sm transition-all active:scale-95"
+        className="mt-8 inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-700 bg-white border border-slate-200 px-5 py-2.5 rounded-xl shadow-sm transition-all active:scale-95"
       >
-        ← カードを えらびなおす
+        <Icon path={ICON.arrowLeft} size={18} />
+        カードを えらびなおす
       </button>
     </div>
   );
 }
 
-// 4-6. 1枚のフラッシュカード（タップでめくる＋スワイプ判定）
+// 5-6. 1枚のフラッシュカード（おもて＝式だけ／うら＝答えだけ）
 function FlashCard({ card, deck, revealed, onReveal, onLeft, onRight }) {
   const swipe = useSwipe({ enabled: revealed, onLeft, onRight });
 
-  // スワイプの向きで、背景にうっすらヒントを出します。
   const intent =
     swipe.dx <= -swipe.threshold ? 'left' : swipe.dx >= swipe.threshold ? 'right' : null;
-
-  const rotate = swipe.dx / 18; // 少しかたむける
+  const rotate = swipe.dx / 22;
   const style = {
     transform: `translateX(${swipe.dx}px) rotate(${rotate}deg)`,
     transition: swipe.dragging ? 'none' : 'transform 0.3s cubic-bezier(.2,.8,.2,1)',
@@ -541,54 +647,51 @@ function FlashCard({ card, deck, revealed, onReveal, onLeft, onRight }) {
   const expr = `${card.a} ${card.op === '+' ? '＋' : '－'} ${card.b}`;
 
   return (
-    <div className="relative w-full flex flex-col items-center no-select">
-      {/* スワイプ方向のヒント（左：せいかい／右：もういちど） */}
-      <div className="absolute inset-0 flex items-center justify-between px-2 pointer-events-none">
+    <div className="relative w-full max-w-xl flex items-center justify-center no-select">
+      {/* スワイプ方向のヒント（左：せいかい／右：もう一度） */}
+      <div className="absolute inset-0 flex items-center justify-between px-1 pointer-events-none">
         <div
-          className={`font-pop text-2xl sm:text-3xl text-emerald-500 transition-opacity duration-150 ${
-            intent === 'left' ? 'opacity-100 scale-110' : 'opacity-20'
+          className={`flex flex-col items-center gap-1 text-emerald-600 transition-all duration-150 ${
+            intent === 'left' ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
           }`}
         >
-          ⭕<br />せいかい
+          <Icon path={ICON.check} size={40} />
+          <span className="text-sm font-bold">せいかい</span>
         </div>
         <div
-          className={`font-pop text-2xl sm:text-3xl text-rose-500 text-right transition-opacity duration-150 ${
-            intent === 'right' ? 'opacity-100 scale-110' : 'opacity-20'
+          className={`flex flex-col items-center gap-1 text-rose-500 transition-all duration-150 ${
+            intent === 'right' ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
           }`}
         >
-          ❌<br />もういちど
+          <Icon path={ICON.close} size={40} />
+          <span className="text-sm font-bold">もう一度</span>
         </div>
       </div>
 
-      {/* カード本体 */}
+      {/* カード本体（おおきめ） */}
       <div
-        className="flip-perspective w-72 h-48 sm:w-96 sm:h-60 z-10"
+        className="flip-perspective w-[86vw] max-w-md h-72 sm:h-96 z-10"
         style={style}
         {...swipe.handlers}
         onClick={() => {
-          // スワイプ中でなければタップでめくる
           if (Math.abs(swipe.dx) < 6 && !revealed) onReveal();
         }}
       >
         <div className={`flip-inner relative w-full h-full ${revealed ? 'is-flipped' : ''}`}>
-          {/* おもて：もんだい */}
+          {/* おもて：しき だけ */}
           <div
-            className={`flip-face absolute inset-0 rounded-2xl shadow-lg ${deck.bg} flex flex-col items-center justify-center cursor-pointer`}
+            className={`flip-face absolute inset-0 rounded-3xl shadow-lg ${deck.bg} flex items-center justify-center cursor-pointer`}
           >
-            <div className="font-textbook text-white text-5xl sm:text-7xl font-bold drop-shadow-sm">
-              {expr} ＝ ?
+            <div className={`font-textbook ${deck.frontText} text-6xl sm:text-8xl font-bold tracking-wide`}>
+              {expr}
             </div>
-            <div className="font-textbook text-white/80 text-sm mt-4">タップで こたえ</div>
           </div>
-          {/* うら：こたえ */}
+          {/* うら：こたえ だけ */}
           <div
-            className={`flip-face flip-back absolute inset-0 rounded-2xl shadow-lg bg-white border-4 ${deck.border} flex flex-col items-center justify-center`}
+            className={`flip-face flip-back absolute inset-0 rounded-3xl shadow-lg bg-white border ${deck.border} flex items-center justify-center`}
           >
-            <div className={`font-textbook text-5xl sm:text-7xl font-bold ${deck.text}`}>
-              {expr} ＝ {card.ans}
-            </div>
-            <div className="font-textbook text-slate-400 text-sm mt-4">
-              ← せいかい ／ まちがい →
+            <div className={`font-textbook ${deck.text} text-8xl sm:text-9xl font-bold`}>
+              {card.ans}
             </div>
           </div>
         </div>
@@ -597,21 +700,20 @@ function FlashCard({ card, deck, revealed, onReveal, onLeft, onRight }) {
   );
 }
 
-// 4-7. あそんでいる画面（カード＋タイマー＋すすみ具合）
-function PlayScreen({ deckId, mode, timer, deck, onFinish, onBack }) {
+// 5-7. あそんでいる画面（カード＋タイマー＋すすみ具合）
+function PlayScreen({ deckId, mode, timer, onFinish, onBack }) {
   const game = useCardDeck(deckId, mode);
   const [revealed, setRevealed] = useState(false);
   const d = DECKS[deckId];
 
-  // 最初の1枚を出すときにタイマーを開始
+  // タイマー開始（このコンポーネントが消えるとリセット）
   useEffect(() => {
     timer.start();
-    // このコンポーネントが消えるときに止める
     return () => timer.reset();
     // eslint-disable-next-line
   }, []);
 
-  // めくり直し（カードが変わったら、おもて向きに戻す）
+  // カードが変わったら、おもて向きに戻す
   useEffect(() => {
     setRevealed(false);
   }, [game.current && game.current.key, game.remaining]);
@@ -627,7 +729,7 @@ function PlayScreen({ deckId, mode, timer, deck, onFinish, onBack }) {
 
   const handleCorrect = useCallback(() => {
     if (!revealed) return;
-    setRevealed(false); // 次のカードは「おもて」から始めます（一瞬の見えてしまいを防止）
+    setRevealed(false);
     game.markCorrect();
   }, [revealed, game]);
 
@@ -637,10 +739,34 @@ function PlayScreen({ deckId, mode, timer, deck, onFinish, onBack }) {
     game.markWrong();
   }, [revealed, game]);
 
+  // キーボード操作：スペース/Enter＝めくる、←せいかい、→もう一度
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.repeat) return;
+      if (!revealed) {
+        if (e.code === 'Space' || e.key === 'Enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          setRevealed(true);
+        }
+      } else {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          handleCorrect();
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          handleWrong();
+        } else if (e.code === 'Space') {
+          e.preventDefault(); // めくった後のスペースは無効
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [revealed, handleCorrect, handleWrong]);
+
   const progress = game.total ? Math.round((game.done / game.total) * 100) : 0;
 
   if (game.isFinished) {
-    // 結果画面に切り替わる直前の一瞬。から表示。
     return <div className="flex-1" />;
   }
 
@@ -648,35 +774,44 @@ function PlayScreen({ deckId, mode, timer, deck, onFinish, onBack }) {
     <div className="flex-1 flex flex-col px-4 py-4">
       {/* じょうほうバー */}
       <div className="w-full max-w-xl mx-auto">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between gap-2">
           <button
             onClick={onBack}
-            className="font-textbook text-sm text-slate-500 hover:text-slate-700 bg-white px-3 py-1.5 rounded-lg shadow-sm transition-all active:scale-95"
+            className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 bg-white border border-slate-200 px-3 py-2 rounded-lg shadow-sm transition-all active:scale-95"
           >
-            ← やめる
+            <Icon path={ICON.arrowLeft} size={16} />
+            やめる
           </button>
-          <div className="font-textbook text-2xl sm:text-3xl font-bold text-slate-700 tabular-nums bg-white px-4 py-1 rounded-xl shadow-sm">
-            ⏱ {formatTime(timer.elapsed)}
+
+          <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-1.5 rounded-xl shadow-sm">
+            <span className="text-slate-400">
+              <Icon path={ICON.clock} size={18} />
+            </span>
+            <span className="text-2xl sm:text-3xl font-bold text-slate-800 tabular-nums">
+              {formatTime(timer.elapsed)}
+            </span>
           </div>
-          <div className="font-textbook text-sm text-slate-500 bg-white px-3 py-1.5 rounded-lg shadow-sm">
-            のこり <span className="font-bold text-slate-700">{game.remaining}</span>
+
+          <div className="text-sm text-slate-500 bg-white border border-slate-200 px-3 py-2 rounded-lg shadow-sm">
+            のこり <span className="font-bold text-slate-800">{game.remaining}</span>
           </div>
         </div>
+
         {/* すすみ具合バー */}
-        <div className="w-full h-3 bg-white rounded-full shadow-inner overflow-hidden mb-1">
+        <div className="mt-3 w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
           <div
-            className={`h-full ${d.bg} transition-all duration-300 rounded-full`}
+            className={`h-full ${d.bar} transition-all duration-300 rounded-full`}
             style={{ width: `${progress}%` }}
           />
         </div>
-        <div className="text-center font-textbook text-xs text-slate-400 mb-2">
-          {game.done} / {game.total} まい せいかい
+        <div className="mt-1.5 text-center text-xs text-slate-400">
+          {game.done} / {game.total} もん せいかい
           {game.mistakes > 0 && <span className="ml-2 text-rose-400">まちがい {game.mistakes}</span>}
         </div>
       </div>
 
       {/* カード */}
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center py-4">
         {game.current && (
           <FlashCard
             key={game.current.key + '-' + game.remaining}
@@ -690,120 +825,129 @@ function PlayScreen({ deckId, mode, timer, deck, onFinish, onBack }) {
         )}
       </div>
 
-      {/* スワイプが むずかしい子むけの ボタン（こたえを出してから おせます） */}
-      <div className="w-full max-w-xl mx-auto flex items-center justify-center gap-4 pb-2">
-        {!revealed ? (
-          <button
-            onClick={() => setRevealed(true)}
-            className={`font-pop text-xl text-white ${d.bg} px-10 py-3 rounded-2xl shadow-md transition-all active:scale-95`}
-          >
-            こたえを みる
-          </button>
-        ) : (
-          <>
-            <button
-              onClick={handleCorrect}
-              className="font-pop text-lg sm:text-xl text-white bg-emerald-500 px-8 py-3 rounded-2xl shadow-md transition-all active:scale-95"
+      {/* 操作ボタン＋キーボードの案内 */}
+      <div className="w-full max-w-xl mx-auto pb-1">
+        <div className="flex items-center justify-center gap-3">
+          {!revealed ? (
+            <PrimaryButton
+              onClick={() => setRevealed(true)}
+              className={`${d.bg} text-lg px-10`}
             >
-              ⭕ せいかい
-            </button>
-            <button
-              onClick={handleWrong}
-              className="font-pop text-lg sm:text-xl text-white bg-rose-500 px-8 py-3 rounded-2xl shadow-md transition-all active:scale-95"
-            >
-              ❌ もういちど
-            </button>
-          </>
-        )}
+              こたえを みる
+            </PrimaryButton>
+          ) : (
+            <>
+              <PrimaryButton onClick={handleCorrect} className="bg-emerald-500 hover:bg-emerald-600 px-8">
+                <Icon path={ICON.check} size={20} />
+                せいかい
+              </PrimaryButton>
+              <PrimaryButton onClick={handleWrong} className="bg-rose-500 hover:bg-rose-600 px-8">
+                <Icon path={ICON.close} size={20} />
+                もう一度
+              </PrimaryButton>
+            </>
+          )}
+        </div>
+        <p className="mt-3 text-center text-xs text-slate-400">
+          {revealed ? '← せいかい ／ もう一度 →（スワイプ・キーボードでも）' : 'カードを タップ／スペースキーで こたえ'}
+        </p>
       </div>
     </div>
   );
 }
 
-// 4-8. 結果画面
+// 5-8. 結果画面
 function ResultScreen({ deckId, mode, result, isBest, best, onRetry, onChangeMode, onHome }) {
   const d = DECKS[deckId];
   const modeName = mode === 'shuffle' ? 'バラバラ' : 'じゅんばん';
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-      <div className="text-7xl mb-4 animate-pop">{isBest ? '🏆' : '🎉'}</div>
-      <h2 className="font-pop text-3xl sm:text-4xl text-slate-700 mb-2">
-        {isBest ? 'しんきろく！' : 'よくできました！'}
+    <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 text-center">
+      {isBest && (
+        <div className={`inline-flex items-center gap-1.5 ${d.text} font-bold mb-3 animate-rise`}>
+          <Icon path={ICON.trophy} size={18} />
+          しんきろく
+        </div>
+      )}
+      <h2 className="text-3xl sm:text-4xl font-black text-slate-800 animate-rise">
+        {isBest ? 'しんきろく！' : 'クリア！'}
       </h2>
-      <div className="font-textbook text-slate-500 mb-6">
+      <div className="text-slate-500 mt-2 mb-6">
         {d.name}・{modeName}モード
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm p-6 w-full max-w-sm mb-8">
-        <div className="font-textbook text-slate-500 text-sm mb-1">クリアタイム</div>
-        <div className={`font-pop text-5xl ${d.text} mb-4 tabular-nums`}>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-7 w-full max-w-sm animate-pop">
+        <div className="text-slate-400 text-sm">クリアタイム</div>
+        <div className={`mt-1 text-6xl font-black ${d.text} tabular-nums`}>
           {formatTime(result.time)}
         </div>
-        <div className="flex justify-around font-textbook text-slate-600">
+        <div className="mt-6 grid grid-cols-3 gap-2 text-slate-700 border-t border-slate-100 pt-5">
           <div>
-            <div className="text-xs text-slate-400">まいすう</div>
-            <div className="text-xl font-bold">{result.total}</div>
+            <div className="text-xs text-slate-400">もんだい</div>
+            <div className="text-xl font-bold tabular-nums">{result.total}</div>
           </div>
           <div>
             <div className="text-xs text-slate-400">まちがい</div>
-            <div className="text-xl font-bold">{result.mistakes}</div>
+            <div className="text-xl font-bold tabular-nums">{result.mistakes}</div>
           </div>
           <div>
             <div className="text-xs text-slate-400">ベスト</div>
-            <div className="text-xl font-bold">{formatTime(best)}</div>
+            <div className="text-xl font-bold tabular-nums">{formatTime(best)}</div>
           </div>
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <button
-          onClick={onRetry}
-          className={`font-pop text-xl text-white ${d.bg} px-8 py-3 rounded-2xl shadow-md transition-all active:scale-95`}
-        >
-          🔁 もういちど
-        </button>
+      <div className="mt-8 flex flex-col sm:flex-row gap-3">
+        <PrimaryButton onClick={onRetry} className={`${d.bg}`}>
+          <Icon path={ICON.replay} size={20} />
+          もう一度
+        </PrimaryButton>
         <button
           onClick={onChangeMode}
-          className="font-pop text-xl text-slate-600 bg-white px-8 py-3 rounded-2xl shadow-md transition-all active:scale-95"
+          className="inline-flex items-center justify-center gap-2 font-bold text-slate-700 bg-white border border-slate-200 px-7 py-3.5 rounded-xl shadow-sm hover:shadow transition-all active:scale-95"
         >
-          モードへ
+          <Icon path={ICON.list} size={20} />
+          モードを かえる
         </button>
         <button
           onClick={onHome}
-          className="font-pop text-xl text-slate-600 bg-white px-8 py-3 rounded-2xl shadow-md transition-all active:scale-95"
+          className="inline-flex items-center justify-center gap-2 font-bold text-slate-700 bg-white border border-slate-200 px-7 py-3.5 rounded-xl shadow-sm hover:shadow transition-all active:scale-95"
         >
-          🏠 さいしょへ
+          <Icon path={ICON.home} size={20} />
+          さいしょへ
         </button>
       </div>
     </div>
   );
 }
 
-// 4-9. せってい（記録を消す）モーダル
+// 5-9. せってい（記録を消す）モーダル
 function SettingsModal({ open, onClose, onResetRecords }) {
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-6"
+      className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 px-6"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm"
+        className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-full max-w-sm animate-pop"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="font-pop text-xl text-slate-700 mb-4">⚙️ せってい</h3>
-        <p className="font-textbook text-sm text-slate-500 mb-4 leading-relaxed">
-          ベストタイムの きろくを ぜんぶ けすことが できます。
+        <div className="flex items-center gap-2 mb-3 text-slate-800">
+          <Icon path={ICON.gear} size={20} />
+          <h3 className="text-lg font-bold">せってい</h3>
+        </div>
+        <p className="text-sm text-slate-500 mb-5 leading-relaxed">
+          ベストタイムの きろくを すべて さくじょします。この そうさは もとに もどせません。
         </p>
         <button
           onClick={onResetRecords}
-          className="w-full font-pop text-white bg-rose-500 px-4 py-3 rounded-xl shadow-md transition-all active:scale-95 mb-3"
+          className="w-full font-bold text-white bg-rose-500 hover:bg-rose-600 px-4 py-3 rounded-xl shadow-sm transition-all active:scale-95 mb-3"
         >
-          きろくを ぜんぶ けす
+          きろくを すべて けす
         </button>
         <button
           onClick={onClose}
-          className="w-full font-pop text-slate-600 bg-slate-100 px-4 py-3 rounded-xl transition-all active:scale-95"
+          className="w-full font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-4 py-3 rounded-xl transition-all active:scale-95"
         >
           とじる
         </button>
@@ -813,7 +957,7 @@ function SettingsModal({ open, onClose, onResetRecords }) {
 }
 
 /* =====================================================================
- *  5. メインボード（画面の切り替えをまとめる司令塔）
+ *  6. メインボード（画面の切り替えをまとめる司令塔）
  * ===================================================================== */
 function MainBoard() {
   // screen: 'title' | 'select' | 'mode' | 'play' | 'result'
@@ -823,12 +967,11 @@ function MainBoard() {
   const [result, setResult] = useState(null);
   const [isBest, setIsBest] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // あそぶたびに +1。PlayScreen を新しく作り直す（=ゲームをリセットする）ための番号。
-  const [playToken, setPlayToken] = useState(0);
+  const [playToken, setPlayToken] = useState(0); // あそぶたびに +1（ゲームをリセット）
 
   const timer = useTimer();
 
-  // ベストタイムを LocalStorage に保存。形： { red: { order: ms, shuffle: ms }, ... }
+  // ベストタイム： { red: { order: ms, shuffle: ms }, ... }
   const [bestTimes, setBestTimes] = useLocalStorage('keisan-card-best-v1', {});
 
   const goHome = () => {
@@ -841,7 +984,6 @@ function MainBoard() {
   const handleFinish = useCallback(
     (res) => {
       setResult(res);
-      // ベスト更新の判定
       const prev = (bestTimes[deckId] && bestTimes[deckId][mode]) ?? null;
       const better = prev == null || res.time < prev;
       setIsBest(better);
@@ -857,16 +999,11 @@ function MainBoard() {
   );
 
   const bestForCurrent =
-    (bestTimes[deckId] && bestTimes[deckId][mode]) ??
-    (result ? result.time : null);
+    (bestTimes[deckId] && bestTimes[deckId][mode]) ?? (result ? result.time : null);
 
   return (
     <div className="h-full flex flex-col">
-      <Header
-        title="けいさんカード"
-        onHome={goHome}
-        onOpenSettings={() => setSettingsOpen(true)}
-      />
+      <Header onHome={goHome} onOpenSettings={() => setSettingsOpen(true)} />
 
       <main className="flex-1 flex flex-col overflow-hidden">
         {screen === 'title' && <TitleScreen onStart={() => setScreen('select')} />}
@@ -900,7 +1037,6 @@ function MainBoard() {
             deckId={deckId}
             mode={mode}
             timer={timer}
-            deck={DECKS[deckId]}
             onFinish={handleFinish}
             onBack={goHome}
           />
@@ -938,7 +1074,7 @@ function MainBoard() {
 }
 
 /* =====================================================================
- *  6. アプリを画面に表示
+ *  7. アプリを画面に表示
  * ===================================================================== */
 function App() {
   return <MainBoard />;

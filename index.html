@@ -2,6 +2,8 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
+  <!-- favicon の 404 を防ぐ（空アイコン） -->
+  <link rel="icon" href="data:," />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>けいさんカード | GIGA山</title>
   <meta name="description" content="小学1年生の計算カードをデジタルで。順番・バラバラの2モード、タイム計測、スワイプ／キーボードで○×判定。" />
@@ -63,6 +65,16 @@
 
   <!-- ===== Babel（App.jsx をブラウザで翻訳） ===== -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script>
+    // JSX を従来方式（React.createElement）で変換するプリセット。
+    // 自動ランタイムだと出力の先頭に import 文が生成され、
+    // モジュールでない <script> として実行されるため
+    // 「Cannot use import statement outside a module」エラーになる。
+    // classic runtime に固定して import 文の生成を防ぐ。
+    Babel.registerPreset('react-classic', {
+      presets: [[Babel.availablePresets.react, { runtime: 'classic' }]],
+    });
+  </script>
 
   <style>
     html, body, #root { height: 100%; }
@@ -92,6 +104,6 @@
   </div>
 
   <!-- ===== アプリ本体。ここだけを編集すれば中身を変えられます ===== -->
-  <script type="text/babel" data-presets="react" src="./App.jsx"></script>
+  <script type="text/babel" data-presets="react-classic" src="./App.jsx"></script>
 </body>
 </html>

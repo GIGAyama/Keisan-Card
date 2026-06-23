@@ -2,18 +2,22 @@
  *  けいさんカード（デジタル計算カード）  App.jsx
  *  ---------------------------------------------------------------------
  *  小学1年生の「計算カード」をブラウザだけで再現したアプリです。
- *  ・あかカード（たしざん／くりあがりなし・和が10まで）
- *  ・あおカード（ひきざん／くりさがりなし）
+ *  ・あかカード（たしざん／くりあがりなし）足される数1〜9・足す数1〜9・和1〜10。
+ *                                          1+0〜9+0 もふくむ。
+ *  ・あおカード（ひきざん／くりさがりなし）引かれる数1〜10・引く数1〜9・差0〜9。
+ *                                          1-1〜9-9 もふくむ。
  *  ・きいろカード（たしざん／くりあがり・和が11〜18）
  *  ・みどりカード（ひきざん／くりさがり）
  *
  *  操作（3つの方法に対応）：
  *   1) カードをタップ → こたえが出る → 左スワイプ＝せいかい／右スワイプ＝もう一度
  *   2) こたえを みる／○／× のボタン
- *   3) キーボード：スペース（またはEnter）＝めくる／← せいかい／→ もう一度
+ *   3) キーボード：スペース／Enter ＝ めくる→せいかいして つぎへ（連打で進む）
+ *                 ← せいかい ／ → もう一度
  *
  *  まちがえたカードは最後にもう一度出題され、ぜんぶ正解するまでの
- *  タイムを自動で計測します。ベストタイムはブラウザに保存されます。
+ *  タイムを自動で計測します。ベストタイムと、取り組んだ回数・タイム履歴
+ *  （成長のきろく）はブラウザに保存されます。
  *
  *  ※ このファイル1つに、すべての画面・ロジック・スタイルが入っています。
  * ===================================================================== */
@@ -24,22 +28,27 @@ const { useState, useEffect, useRef, useCallback } = React;
  *  1. データ：4種類のカードを「計算で」作ります
  * ===================================================================== */
 
-// あか：たしざん（くりあがりなし）。足す数・足される数が0〜9で、和が10まで。
+// あか：たしざん（くりあがりなし）。
+//   足される数(a)が1〜9・足す数(b)が1〜9で、和が1〜10まで。
+//   さらに 1+0〜9+0（足す数が0）のカードも ふくめます。
 function makeRedCards() {
   const cards = [];
-  for (let a = 0; a <= 9; a++) {
+  for (let a = 1; a <= 9; a++) {
     for (let b = 0; b <= 9; b++) {
+      // b=0 のとき和は a（=1〜9）なので、この条件だけで +0 カードも入ります。
       if (a + b <= 10) cards.push({ a, b, op: '+', ans: a + b });
     }
   }
   return cards;
 }
 
-// あお：ひきざん（くりさがりなし）。引かれる数・引く数が0〜10で、差が0〜9。
+// あお：ひきざん（くりさがりなし）。
+//   引かれる数(a)が1〜10・引く数(b)が1〜9で、差が0〜9まで。
+//   1-1〜9-9（差が0）のカードも この範囲に ふくまれます。
 function makeBlueCards() {
   const cards = [];
-  for (let a = 0; a <= 10; a++) {
-    for (let b = 0; b <= 10; b++) {
+  for (let a = 1; a <= 10; a++) {
+    for (let b = 1; b <= 9; b++) {
       const d = a - b;
       if (d >= 0 && d <= 9) cards.push({ a, b, op: '-', ans: d });
     }
@@ -244,6 +253,15 @@ const ICON = {
     </>
   ),
   play: <polygon points="6 4 20 12 6 20 6 4" />,
+  chart: (
+    <>
+      <line x1="3" y1="21" x2="21" y2="21" />
+      <rect x="5" y="11" width="3.4" height="8" rx="0.8" />
+      <rect x="10.3" y="7" width="3.4" height="12" rx="0.8" />
+      <rect x="15.6" y="13" width="3.4" height="6" rx="0.8" />
+    </>
+  ),
+  star: <polygon points="12 2.5 15 9 22 9.7 16.8 14.4 18.4 21.3 12 17.6 5.6 21.3 7.2 14.4 2 9.7 9 9" />,
   trophy: (
     <>
       <path d="M8 21h8" />
@@ -490,7 +508,7 @@ function PrimaryButton({ children, className = '', ...props }) {
 }
 
 // 5-3. タイトル画面
-function TitleScreen({ onStart }) {
+function TitleScreen({ onStart, onRecords }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
       <div className="animate-rise">
@@ -510,6 +528,13 @@ function TitleScreen({ onStart }) {
         <Icon path={ICON.play} size={20} fill />
         はじめる
       </PrimaryButton>
+      <button
+        onClick={onRecords}
+        className="mt-4 inline-flex items-center gap-2 font-bold text-slate-600 bg-white border border-slate-200 px-6 py-3 rounded-xl shadow-sm hover:shadow transition-all active:scale-95 animate-pop"
+      >
+        <Icon path={ICON.chart} size={18} />
+        せいちょうの きろく
+      </button>
     </div>
   );
 }
@@ -739,24 +764,26 @@ function PlayScreen({ deckId, mode, timer, onFinish, onBack }) {
     game.markWrong();
   }, [revealed, game]);
 
-  // キーボード操作：スペース/Enter＝めくる、←せいかい、→もう一度
+  // キーボード操作：
+  //   スペース／Enter … おもて＝めくる、うら＝せいかいして つぎへ
+  //     → 連打すると「めくる→せいかい→めくる…」とどんどん 進みます。
+  //   ← せいかい ／ → もう一度（うら向きのとき）
   useEffect(() => {
     const onKey = (e) => {
-      if (e.repeat) return;
+      if (e.repeat) return; // キーの押しっぱなしでは進めない（連打のみ）
+      const isAdvance = e.code === 'Space' || e.key === 'Enter';
       if (!revealed) {
-        if (e.code === 'Space' || e.key === 'Enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        if (isAdvance || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
           e.preventDefault();
           setRevealed(true);
         }
       } else {
-        if (e.key === 'ArrowLeft') {
+        if (e.key === 'ArrowLeft' || isAdvance) {
           e.preventDefault();
-          handleCorrect();
+          handleCorrect(); // スペース／Enterの連打で せいかいして つぎへ
         } else if (e.key === 'ArrowRight') {
           e.preventDefault();
           handleWrong();
-        } else if (e.code === 'Space') {
-          e.preventDefault(); // めくった後のスペースは無効
         }
       }
     };
@@ -849,7 +876,9 @@ function PlayScreen({ deckId, mode, timer, onFinish, onBack }) {
           )}
         </div>
         <p className="mt-3 text-center text-xs text-slate-400">
-          {revealed ? '← せいかい ／ もう一度 →（スワイプ・キーボードでも）' : 'カードを タップ／スペースキーで こたえ'}
+          {revealed
+            ? 'スペース／Enterで せいかい → つぎへ（← せいかい ／ もう一度 →）'
+            : 'カードを タップ／スペース・Enterで こたえ（連打でどんどん進む）'}
         </p>
       </div>
     </div>
@@ -920,7 +949,145 @@ function ResultScreen({ deckId, mode, result, isBest, best, onRetry, onChangeMod
   );
 }
 
-// 5-9. せってい（記録を消す）モーダル
+/* ---------------------------------------------------------------------
+ *  記録（成長のきろく）まわりの小さな計算関数
+ * ------------------------------------------------------------------- */
+
+// あるデッキの「取り組んだ回数」（順番＋バラバラの合計）
+function deckPlays(stats, deckId) {
+  const s = stats[deckId] || {};
+  return ['order', 'shuffle'].reduce((sum, m) => sum + ((s[m] && s[m].plays) || 0), 0);
+}
+
+// あるデッキの記録（順番＋バラバラ）を時間順にまとめて返す
+function deckHistory(stats, deckId) {
+  const s = stats[deckId] || {};
+  const all = [];
+  ['order', 'shuffle'].forEach((m) => {
+    ((s[m] && s[m].history) || []).forEach((h) => all.push({ ...h, mode: m }));
+  });
+  all.sort((x, y) => x.t - y.t);
+  return all;
+}
+
+// 全デッキの合計プレイ回数
+function totalPlays(stats) {
+  return DECK_ORDER.reduce((sum, id) => sum + deckPlays(stats, id), 0);
+}
+
+// 5-9. ミニ棒グラフ（最近のタイムを ならべて 成長を見せる）
+//   ぼうが ひくい ほど はやい（＝じょうず）。いちばん はやい記録は色を濃く。
+function MiniBarChart({ history, deck }) {
+  const recent = history.slice(-12);
+  if (recent.length === 0) {
+    return (
+      <div className="h-20 flex items-center justify-center text-xs text-slate-300">
+        まだ きろくが ありません
+      </div>
+    );
+  }
+  const times = recent.map((h) => h.time);
+  const max = Math.max(...times);
+  const best = Math.min(...times);
+  return (
+    <div className="h-20 flex items-end justify-center gap-1.5">
+      {recent.map((h, i) => {
+        const ratio = max > 0 ? h.time / max : 1;
+        const heightPct = 18 + ratio * 82; // 18%〜100%（はやくても見えるように）
+        const isBest = h.time === best;
+        return (
+          <div
+            key={i}
+            className="flex-1 max-w-[18px] rounded-t-md transition-all"
+            style={{ height: `${heightPct}%` }}
+            title={`${formatTime(h.time)}（まちがい ${h.mistakes}）`}
+          >
+            <div
+              className={`w-full h-full rounded-t-md ${isBest ? deck.bg : 'bg-slate-200'}`}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// 5-10. せいちょうの きろく 画面
+function RecordsScreen({ stats, bestTimes, onBack }) {
+  const grand = totalPlays(stats);
+  return (
+    <div className="flex-1 flex flex-col items-center px-4 py-8 overflow-auto">
+      <div className="flex items-center gap-2 text-slate-800">
+        <Icon path={ICON.chart} size={26} />
+        <h2 className="text-2xl sm:text-3xl font-bold">せいちょうの きろく</h2>
+      </div>
+      <p className="text-slate-500 mt-2 mb-6 text-sm sm:text-base">
+        いままで <span className="font-bold text-slate-700">{grand}</span> かい とりくみました。
+        まいにち つづけて、タイムを ちぢめよう！
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full max-w-2xl">
+        {DECK_ORDER.map((id) => {
+          const d = DECKS[id];
+          const plays = deckPlays(stats, id);
+          const history = deckHistory(stats, id);
+          const best = minBest(bestTimes[id]);
+          const last = history.length ? history[history.length - 1].time : null;
+          return (
+            <div
+              key={id}
+              className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5"
+            >
+              <div className="flex items-center gap-3">
+                <DeckSwatch deck={d} size="w-11 h-11 text-2xl" />
+                <div className="min-w-0">
+                  <div className="text-lg font-bold text-slate-800">{d.name}</div>
+                  <div className="text-xs text-slate-500 truncate">{d.sub}</div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <div className="text-[11px] text-slate-400">かいすう</div>
+                  <div className="text-xl font-bold text-slate-800 tabular-nums">{plays}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-slate-400">ベスト</div>
+                  <div className={`text-xl font-bold tabular-nums ${best != null ? d.text : 'text-slate-300'}`}>
+                    {best != null ? formatTime(best) : '--:--'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-slate-400">まえかい</div>
+                  <div className="text-xl font-bold text-slate-700 tabular-nums">
+                    {last != null ? formatTime(last) : '--:--'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 border-t border-slate-100 pt-3">
+                <MiniBarChart history={history} deck={d} />
+                <div className="mt-1 text-center text-[11px] text-slate-400">
+                  さいきんの タイム（ひくいほど はやい）
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <button
+        onClick={onBack}
+        className="mt-8 inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-700 bg-white border border-slate-200 px-5 py-2.5 rounded-xl shadow-sm transition-all active:scale-95"
+      >
+        <Icon path={ICON.arrowLeft} size={18} />
+        もどる
+      </button>
+    </div>
+  );
+}
+
+// 5-11. せってい（記録を消す）モーダル
 function SettingsModal({ open, onClose, onResetRecords }) {
   if (!open) return null;
   return (
@@ -937,7 +1104,8 @@ function SettingsModal({ open, onClose, onResetRecords }) {
           <h3 className="text-lg font-bold">せってい</h3>
         </div>
         <p className="text-sm text-slate-500 mb-5 leading-relaxed">
-          ベストタイムの きろくを すべて さくじょします。この そうさは もとに もどせません。
+          ベストタイムと せいちょうの きろく（取り組んだ回数・タイム履歴）を すべて
+          さくじょします。この そうさは もとに もどせません。
         </p>
         <button
           onClick={onResetRecords}
@@ -974,6 +1142,10 @@ function MainBoard() {
   // ベストタイム： { red: { order: ms, shuffle: ms }, ... }
   const [bestTimes, setBestTimes] = useLocalStorage('keisan-card-best-v1', {});
 
+  // 取り組みの記録（成長のきろく）：
+  //   { red: { order: { plays, history: [{ t, time, mistakes }] }, shuffle: {...} }, ... }
+  const [stats, setStats] = useLocalStorage('keisan-card-stats-v1', {});
+
   const goHome = () => {
     timer.reset();
     setScreen('title');
@@ -993,9 +1165,22 @@ function MainBoard() {
           [deckId]: { ...(b[deckId] || {}), [mode]: res.time },
         }));
       }
+      // 取り組み回数とタイム履歴を記録（成長のきろく用）
+      setStats((s) => {
+        const deck = s[deckId] || {};
+        const cur = deck[mode] || { plays: 0, history: [] };
+        const history = [
+          ...cur.history,
+          { t: Date.now(), time: res.time, mistakes: res.mistakes },
+        ].slice(-30); // 直近30回まで保存
+        return {
+          ...s,
+          [deckId]: { ...deck, [mode]: { plays: cur.plays + 1, history } },
+        };
+      });
       setScreen('result');
     },
-    [bestTimes, deckId, mode, setBestTimes]
+    [bestTimes, deckId, mode, setBestTimes, setStats]
   );
 
   const bestForCurrent =
@@ -1006,7 +1191,20 @@ function MainBoard() {
       <Header onHome={goHome} onOpenSettings={() => setSettingsOpen(true)} />
 
       <main className="flex-1 flex flex-col overflow-hidden">
-        {screen === 'title' && <TitleScreen onStart={() => setScreen('select')} />}
+        {screen === 'title' && (
+          <TitleScreen
+            onStart={() => setScreen('select')}
+            onRecords={() => setScreen('records')}
+          />
+        )}
+
+        {screen === 'records' && (
+          <RecordsScreen
+            stats={stats}
+            bestTimes={bestTimes}
+            onBack={() => setScreen('title')}
+          />
+        )}
 
         {screen === 'select' && (
           <SelectScreen
@@ -1066,6 +1264,7 @@ function MainBoard() {
         onClose={() => setSettingsOpen(false)}
         onResetRecords={() => {
           setBestTimes({});
+          setStats({});
           setSettingsOpen(false);
         }}
       />

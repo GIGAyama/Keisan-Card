@@ -1058,7 +1058,7 @@ function RecordsScreen({ stats, bestTimes, onBack }) {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-400">まえかい</div>
+                  <div className="text-[11px] text-slate-400">ぜんかい</div>
                   <div className="text-xl font-bold text-slate-700 tabular-nums">
                     {last != null ? formatTime(last) : '--:--'}
                   </div>

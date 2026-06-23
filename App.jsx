@@ -518,7 +518,7 @@ function TitleScreen({ onStart, onRecords }) {
         けいさんカード
       </h1>
       <p className="mt-4 text-slate-500 text-base sm:text-lg leading-relaxed animate-rise">
-        計算カードを めくって、すらすら こたえよう。<br />
+        けいさんカードを めくって、すらすら こたえよう。<br />
         ぜんぶ こたえると タイムが でます。
       </p>
       <PrimaryButton
@@ -605,14 +605,14 @@ function ModeScreen({ deckId, onPick, onBack, bestTimes }) {
       id: 'order',
       title: 'じゅんばん',
       icon: ICON.list,
-      desc: '小さい じゅんに 出ます。\nまずは これで れんしゅう。',
+      desc: 'ちいさい じゅんに でます。\nまずは これで れんしゅう。',
       best: best.order,
     },
     {
       id: 'shuffle',
       title: 'バラバラ',
       icon: ICON.shuffle,
-      desc: 'じゅんばんが バラバラに 出ます。\nすらすら 言えるかな。',
+      desc: 'じゅんばんが バラバラに でます。\nすらすら いえるかな。',
       best: best.shuffle,
     },
   ];
@@ -870,15 +870,15 @@ function PlayScreen({ deckId, mode, timer, onFinish, onBack }) {
               </PrimaryButton>
               <PrimaryButton onClick={handleWrong} className="bg-rose-500 hover:bg-rose-600 px-8">
                 <Icon path={ICON.close} size={20} />
-                もう一度
+                もういちど
               </PrimaryButton>
             </>
           )}
         </div>
         <p className="mt-3 text-center text-xs text-slate-400">
           {revealed
-            ? 'スペース／Enterで せいかい → つぎへ（← せいかい ／ もう一度 →）'
-            : 'カードを タップ／スペース・Enterで こたえ（連打でどんどん進む）'}
+            ? 'スペース／Enterで せいかい → つぎへ（← せいかい ／ もういちど →）'
+            : 'カードを タップ／スペース・Enterで こたえ（れんだでどんどんすすむ）'}
         </p>
       </div>
     </div>
@@ -928,7 +928,7 @@ function ResultScreen({ deckId, mode, result, isBest, best, onRetry, onChangeMod
       <div className="mt-8 flex flex-col sm:flex-row gap-3">
         <PrimaryButton onClick={onRetry} className={`${d.bg}`}>
           <Icon path={ICON.replay} size={20} />
-          もう一度
+          もういちど
         </PrimaryButton>
         <button
           onClick={onChangeMode}

@@ -2,12 +2,24 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <!-- favicon（ブラウザのタブ・ホーム画面アイコン） -->
-  <link rel="icon" type="image/png" href="./favicon.png" />
-  <link rel="apple-touch-icon" href="./favicon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>けいさんカード | GIGA山</title>
-  <meta name="description" content="小学1年生の計算カードをデジタルで。順番・バラバラの2モード、タイム計測、スワイプ／キーボードで○×判定。" />
+  <meta name="description" content="小学1年生の計算カードをデジタルで。順番・バラバラの2モード、タイム計測、スワイプ／キーボードで○×判定。まいにち続けたくなる、れんぞく記録とがんばりカレンダー付き。" />
+
+  <!-- ===== PWA（アプリとしてインストール／オフライン） ===== -->
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <meta name="theme-color" content="#f59e0b" />
+  <meta name="color-scheme" content="light" />
+  <!-- ホーム画面アイコン -->
+  <link rel="icon" type="image/png" href="./favicon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="./icons/icon-512.png" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <!-- iOS（Safari）でアプリ風に表示 -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="けいさんカード" />
 
   <!-- ===== Google Fonts ===== -->
   <!-- UI・見出し：Zen Kaku Gothic New（落ち着いた角ゴシック） -->
@@ -50,10 +62,16 @@
               '0%': { transform: 'scale(0.92)', opacity: '0' },
               '100%': { transform: 'scale(1)', opacity: '1' },
             },
+            pulseOnce: {
+              '0%': { transform: 'scale(1)' },
+              '40%': { transform: 'scale(1.14)' },
+              '100%': { transform: 'scale(1)' },
+            },
           },
           animation: {
             rise: 'rise 0.35s ease-out both',
             pop: 'pop 0.25s ease-out both',
+            'pulse-once': 'pulseOnce 0.5s ease-out',
           },
         },
       },
@@ -78,7 +96,9 @@
   </script>
 
   <style>
+    /* 画面の高さ：スマホのアドレスバーで隙間ができないよう dvh を使用（未対応は 100%） */
     html, body, #root { height: 100%; }
+    #root { height: 100vh; height: 100dvh; }
     body {
       margin: 0;
       /* シンプルで落ち着いた背景 */
@@ -88,6 +108,9 @@
       -webkit-tap-highlight-color: transparent;
       overscroll-behavior: none;
     }
+    /* iPhone のノッチ／ホームバー分の余白（セーフエリア） */
+    .safe-top { padding-top: env(safe-area-inset-top); }
+    .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
     /* 3Dカードめくり用 */
     .flip-perspective { perspective: 1600px; }
     .flip-inner { transform-style: preserve-3d; transition: transform 0.45s cubic-bezier(.2,.8,.2,1); }
@@ -95,6 +118,33 @@
     .flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
     .flip-back { transform: rotateY(180deg); }
     .no-select { -webkit-user-select: none; user-select: none; touch-action: none; }
+    /* 背が低い画面（スマホ横向きなど）では、まわりを小さくして
+       学習カードをできるだけ大きく見せる */
+    @media (max-height: 520px) {
+      .play-hint { display: none; }
+      .play-cap { display: none; }
+      .play-cardarea { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+      .play-timer { font-size: 1.25rem !important; line-height: 1.6rem !important; }
+    }
+    /* クリア時の紙ふぶき */
+    .confetti-piece {
+      position: absolute;
+      top: -24px;
+      width: 10px;
+      height: 14px;
+      will-change: transform, opacity;
+      animation-name: confetti-fall;
+      animation-timing-function: cubic-bezier(.2,.6,.4,1);
+      animation-fill-mode: forwards;
+    }
+    @keyframes confetti-fall {
+      0%   { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(112vh) rotate(680deg); opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .flip-inner { transition: none; }
+      .confetti-piece { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -106,5 +156,30 @@
 
   <!-- ===== アプリ本体。ここだけを編集すれば中身を変えられます ===== -->
   <script type="text/babel" data-presets="react-classic" src="./App.jsx"></script>
+
+  <!-- ===== PWA：Service Worker の登録＋インストール案内 ===== -->
+  <script>
+    // 「アプリをインストール」できる状態になったら覚えておき、
+    // React 側（タイトル画面のボタン）から使えるようにする。
+    window.__deferredInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      window.__deferredInstallPrompt = e;
+      window.dispatchEvent(new Event('pwa-installable'));
+    });
+    window.addEventListener('appinstalled', function () {
+      window.__deferredInstallPrompt = null;
+      window.dispatchEvent(new Event('pwa-installed'));
+    });
+
+    // Service Worker を登録（オフライン対応・アプリ化）
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('./sw.js').catch(function () {
+          /* 登録できなくてもアプリは通常どおり動きます */
+        });
+      });
+    }
+  </script>
 </body>
 </html>

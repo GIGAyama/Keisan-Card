@@ -118,6 +118,30 @@
     .flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
     .flip-back { transform: rotateY(180deg); }
     .no-select { -webkit-user-select: none; user-select: none; touch-action: none; }
+    /* スワイプ中の しわけラベル（九九マスターと同じしくみ）
+       カードのわきに置いておき、うごかした向きに合わせて ふわっと出します。 */
+    .swipe-label {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 12px 16px;
+      border-radius: 16px;
+      font-size: 17px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.15s;
+      pointer-events: none;
+      z-index: 20;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+    }
+    .swipe-label-left  { left: 6px; }
+    .swipe-label-right { right: 6px; }
+    .swipe-label.is-shown { opacity: 1; }
     /* 背が低い画面（スマホ横向きなど）では、まわりを小さくして
        学習カードをできるだけ大きく見せる */
     @media (max-height: 520px) {

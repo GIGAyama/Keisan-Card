@@ -10,10 +10,10 @@
  *  ・みどりカード（ひきざん／くりさがり）
  *
  *  操作（3つの方法に対応）：
- *   1) カードをタップ → こたえが出る → 左スワイプ＝せいかい／右スワイプ＝もう一度
- *   2) こたえを みる／○／× のボタン
- *   3) キーボード：スペース／Enter ＝ めくる→せいかいして つぎへ（連打で進む）
- *                 ← せいかい ／ → もう一度
+ *   1) カードをタップ → こたえが出る → 左スワイプ＝わかった／右スワイプ＝もういちど
+ *   2) こたえを みる／わかった／もういちど のボタン
+ *   3) キーボード：スペース／Enter ＝ めくる→わかったで つぎへ（連打で進む）
+ *                 ← わかった ／ → もういちど
  *
  *  まちがえたカードは最後にもう一度出題され、ぜんぶ正解するまでの
  *  タイムを自動で計測します。ベストタイム・取り組んだ回数・タイム履歴
@@ -437,7 +437,7 @@ function useCardDeck(deckId, mode) {
   const currentRef = useRef(current);
   currentRef.current = current;
 
-  // 「せいかい」：次のカードへ
+  // 「わかった」：次のカードへ
   const markCorrect = useCallback(() => {
     if (!currentRef.current) return;
     setQueue((q) => q.slice(1));
@@ -474,7 +474,7 @@ function useCardDeck(deckId, mode) {
 }
 
 // 5-3. スワイプ操作のフック（指でもマウスでも動きます）
-//   左へ → onLeft（せいかい）／右へ → onRight（もう一度）
+//   左へ → onLeft（わかった）／右へ → onRight（もういちど）
 function useSwipe({ enabled, onLeft, onRight }) {
   const [dx, setDx] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -810,13 +810,12 @@ function LiveTimer({ startRef, className = '' }) {
 function FlashCard({ card, deck, revealed, onReveal, onLeft, onRight }) {
   const swipe = useSwipe({ enabled: revealed, onLeft, onRight });
 
-  // 少しでも動かしたら、どちらに仕分けようとしているかを カードの上に見せます。
-  //   左＝✓わかった（せいかい）／右＝✕もういちど
-  const DIR_MIN = 8; // これ以上うごかしたら 表示（ただのタップでは出さない）
-  const intent = swipe.dx <= -DIR_MIN ? 'left' : swipe.dx >= DIR_MIN ? 'right' : null;
-  // うごかした量にあわせて、だんだん はっきり見えるようにします。
-  const strength = Math.min(1, Math.abs(swipe.dx) / swipe.threshold);
-  const reached = Math.abs(swipe.dx) >= swipe.threshold; // はなせば 確定する状態
+  // どちらに仕分けようとしているかを ラベルで見せます（九九マスターと同じしくみ）。
+  //   左＝✓わかった／右＝✕もういちど
+  //   40px より動かしたら表示（ただのタップやわずかな指のブレでは出さない）
+  const SHOW_AT = 40;
+  const showLeft = swipe.dx <= -SHOW_AT;
+  const showRight = swipe.dx >= SHOW_AT;
 
   const rotate = swipe.dx / 22;
   const style = {
@@ -828,6 +827,23 @@ function FlashCard({ card, deck, revealed, onReveal, onLeft, onRight }) {
 
   return (
     <div className="relative w-full h-full max-w-3xl flex items-center justify-center no-select">
+      {/* スワイプ方向のラベル（カードとは別に、りょうわきへ置いておきます）
+          左へ動かしている＝✓わかった／右へ動かしている＝✕もういちど */}
+      <div
+        className={`swipe-label swipe-label-left bg-emerald-500 ${showLeft ? 'is-shown' : ''}`}
+        aria-hidden="true"
+      >
+        <Icon path={ICON.check} size={22} />
+        わかった
+      </div>
+      <div
+        className={`swipe-label swipe-label-right bg-rose-500 ${showRight ? 'is-shown' : ''}`}
+        aria-hidden="true"
+      >
+        <Icon path={ICON.close} size={22} />
+        もういちど
+      </div>
+
       {/* カード本体（利用できる高さ・幅いっぱいに大きく） */}
       <div
         className="relative flip-perspective w-full h-full max-w-2xl z-10"
@@ -861,39 +877,6 @@ function FlashCard({ card, deck, revealed, onReveal, onLeft, onRight }) {
             </div>
           </div>
         </div>
-
-        {/* スワイプ方向のラベル（カードの上にかさねて表示）
-            左へ動かしている＝✓わかった／右へ動かしている＝✕もういちど */}
-        {intent && (
-          <div
-            className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none px-4"
-            aria-hidden="true"
-          >
-            <div
-              className={`flex items-center gap-3 px-6 py-3 rounded-2xl shadow-lg text-white font-bold ${
-                intent === 'left' ? 'bg-emerald-500' : 'bg-rose-500'
-              } ${
-                reached
-                  ? intent === 'left'
-                    ? 'ring-4 ring-emerald-200'
-                    : 'ring-4 ring-rose-200'
-                  : ''
-              }`}
-              style={{
-                opacity: 0.4 + strength * 0.6,
-                // しきい値をこえたら、ひとまわり大きくして「はなせば きまる」ことを見せます。
-                transform: `scale(${0.85 + strength * 0.15 + (reached ? 0.07 : 0)}) rotate(${
-                  intent === 'left' ? -6 : 6
-                }deg)`,
-              }}
-            >
-              <Icon path={intent === 'left' ? ICON.check : ICON.close} size={36} />
-              <span className="leading-none" style={{ fontSize: 'clamp(1.5rem, 6vmin, 3rem)' }}>
-                {intent === 'left' ? 'わかった' : 'もういちど'}
-              </span>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -949,8 +932,8 @@ function PlayScreen({ deckId, mode, effectsOn, onFinish, onBack }) {
   }, [revealed, game, effectsOn]);
 
   // キーボード操作：
-  //   スペース／Enter … おもて＝めくる、うら＝せいかいして つぎへ（連打で進む）
-  //   ← せいかい ／ → もう一度（うら向きのとき）
+  //   スペース／Enter … おもて＝めくる、うら＝わかったで つぎへ（連打で進む）
+  //   ← わかった ／ → もういちど（うら向きのとき）
   useEffect(() => {
     const onKey = (e) => {
       if (e.repeat) return; // 押しっぱなしでは進めない（連打のみ）
@@ -1050,7 +1033,7 @@ function PlayScreen({ deckId, mode, effectsOn, onFinish, onBack }) {
             <>
               <PrimaryButton onClick={handleCorrect} className="bg-emerald-500 hover:bg-emerald-600 px-8">
                 <Icon path={ICON.check} size={20} />
-                せいかい
+                わかった
               </PrimaryButton>
               <PrimaryButton onClick={handleWrong} className="bg-rose-500 hover:bg-rose-600 px-8">
                 <Icon path={ICON.close} size={20} />
@@ -1061,7 +1044,7 @@ function PlayScreen({ deckId, mode, effectsOn, onFinish, onBack }) {
         </div>
         <p className="play-hint mt-2.5 text-center text-xs text-slate-400">
           {revealed
-            ? 'スペース／Enterで せいかい → つぎへ（← せいかい ／ もういちど →）'
+            ? 'スペース／Enterで わかった → つぎへ（← わかった ／ もういちど →）'
             : 'カードを タップ／スペース・Enterで こたえ（れんだでどんどんすすむ）'}
         </p>
       </div>

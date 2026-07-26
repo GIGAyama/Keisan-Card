@@ -514,6 +514,122 @@ function useSwipe({ enabled, onLeft, onRight }) {
   return { dx, dragging, handlers, threshold: THRESHOLD };
 }
 
+// 5-4. 端末の「もどる」操作を アプリの「1つ前の階層へ」にむすびつけるフック
+//   （スマホ・タブレット）
+//     ・画面下の ナビゲーションバーの「もどる」ボタン
+//     ・画面の左右のふちから 中央へ スワイプ（ジェスチャー操作）
+//   （パソコン）
+//     ・ブラウザの「戻る」ボタン／Alt＋←  も 同じように はたらきます
+//
+//   しくみ：
+//     ブラウザの履歴に「見張り」を いくつか 積んでおきます。
+//     端末の「もどる」は、この見張りを 1つ 取りのぞくだけなので、
+//     ・前のサイトへ 移動してしまう（ブラウザの戻る）
+//     ・アプリが 終了してしまう
+//     ということが おきません。
+//     見張りが取りのぞかれたら（popstate）、アプリの中で 1つ前の画面へ もどし、
+//     すぐに 見張りを 積みなおして、つぎの「もどる」にも そなえます。
+//     （見張りを 何枚か かさねておくのは、「もどる」を 何回も 続けて
+//       すばやく 操作されたときにも、切れ目なく うけとめるためです）
+//
+//   いちばん上（タイトル画面）で「もどる」をしたときは すぐには閉じず、
+//   「もう1かいで とじます」と おしらせします。つづけて もう1かい 操作した
+//   ときだけ、ふつうの「戻る」（前のページへ）を おこないます。
+//
+//   引数 onBack … アプリの中で 1つ前へ もどす関数。
+//                 もどれたら true／いちばん上で もどれなければ false を返します。
+//   戻り値      … 「もう1かいで とじます」を 表示するかどうか（true/false）
+const BACK_GUARDS = 3; // 積んでおく見張りの枚数
+
+function useSystemBack(onBack) {
+  const [askExit, setAskExit] = useState(false);
+  const onBackRef = useRef(onBack);
+  onBackRef.current = onBack;
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.history || !window.history.pushState) return;
+
+    let askExitNow = false; // タイトル画面で 1回目の「もどる」を うけたか
+    let timer = 0;
+
+    // いま 何枚の見張りの上にいるか（0＝見張りなし＝アプリを開いたときの位置）
+    const guardLevel = () => {
+      const st = window.history.state;
+      return st && st.kcBackGuard ? st.kcBackGuard : 0;
+    };
+
+    // 見張りを 決めた枚数まで 積みたす
+    const fillGuards = () => {
+      try {
+        let level = guardLevel();
+        while (level < BACK_GUARDS) {
+          level += 1;
+          window.history.pushState({ kcBackGuard: level }, '');
+        }
+      } catch (e) {
+        /* 使えない環境でも アプリは ふつうに動きます */
+      }
+    };
+
+    const clearAsk = () => {
+      askExitNow = false;
+      setAskExit(false);
+      if (timer) {
+        clearTimeout(timer);
+        timer = 0;
+      }
+    };
+
+    // さいしょの見張りは「画面に さわってから」積みます。
+    //   さわる前に積むと、ブラウザに「かってな履歴」とみなされて
+    //   とばされる（無視される）ことがあるためです。
+    const armOnce = () => {
+      window.removeEventListener('pointerdown', armOnce, true);
+      window.removeEventListener('keydown', armOnce, true);
+      fillGuards();
+    };
+    window.addEventListener('pointerdown', armOnce, true);
+    window.addEventListener('keydown', armOnce, true);
+
+    const onPop = () => {
+      // 1) アプリの中で もどれるとき … 1つ前の階層へ
+      if (onBackRef.current()) {
+        clearAsk();
+        fillGuards();
+        return;
+      }
+      // 2) いちばん上の画面 … 1回目は 閉じずに おしらせ
+      if (!askExitNow) {
+        askExitNow = true;
+        setAskExit(true);
+        timer = window.setTimeout(clearAsk, 2500);
+        fillGuards();
+        return;
+      }
+      // 3) つづけて もう1かい … ふつうの「戻る」（前のページへ／アプリを とじる）
+      //    のこっている見張りの ぶんだけ まとめて もどります。
+      clearAsk();
+      try {
+        window.history.go(-(guardLevel() + 1));
+      } catch (e) {
+        /* もどれなくても つづけて つかえます */
+      }
+      // 前のページが 無くて もどれなかったときのために、見張りを積みなおす
+      window.setTimeout(fillGuards, 600);
+    };
+
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('pointerdown', armOnce, true);
+      window.removeEventListener('keydown', armOnce, true);
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+
+  return askExit;
+}
+
 /* =====================================================================
  *  6. 画面の部品（コンポーネント）
  * ===================================================================== */
@@ -1493,9 +1609,30 @@ function SettingsModal({ open, onClose, effectsOn, onToggleEffects, onResetRecor
   );
 }
 
+// 6-15. 「もう1かいで とじます」の おしらせ（画面の下に すこしのあいだ 出ます）
+function ExitHintToast() {
+  return (
+    <div className="back-toast fixed left-0 right-0 flex justify-center z-50 px-6 pointer-events-none">
+      <div className="bg-slate-800/90 text-white text-sm font-bold px-5 py-3 rounded-full shadow-lg animate-pop">
+        もう1かい「もどる」で とじます
+      </div>
+    </div>
+  );
+}
+
 /* =====================================================================
  *  7. メインボード（画面の切り替えをまとめる司令塔）
  * ===================================================================== */
+
+// 画面の「1つ前の階層」。ここに無い画面（タイトル）は いちばん上です。
+const BACK_TO = {
+  select: 'title',
+  records: 'title',
+  mode: 'select',
+  play: 'mode',
+  result: 'mode',
+};
+
 function MainBoard() {
   // screen: 'title' | 'select' | 'mode' | 'play' | 'result' | 'records'
   const [screen, setScreen] = useState('title');
@@ -1552,11 +1689,53 @@ function MainBoard() {
     setCanInstall(false);
   }, []);
 
-  const goHome = () => {
-    setScreen('title');
+  // いま どの画面にいるかを「その場で」読み書きするための控え。
+  //   画面の切りかえ（useState）は すこし あとに 反映されるため、
+  //   「もどる」を つづけて 2回 すばやく 操作したときに
+  //   1回ぶんしか もどらない、ということが おきないようにします。
+  const navRef = useRef({ screen: 'title', settingsOpen: false });
+  navRef.current.screen = screen;
+  navRef.current.settingsOpen = settingsOpen;
+
+  // 画面を切りかえる（控えも いっしょに 更新）
+  const goTo = useCallback((next) => {
+    navRef.current.screen = next;
+    setScreen(next);
+  }, []);
+
+  const openSettings = useCallback(() => {
+    navRef.current.settingsOpen = true;
+    setSettingsOpen(true);
+  }, []);
+
+  const closeSettings = useCallback(() => {
+    navRef.current.settingsOpen = false;
+    setSettingsOpen(false);
+  }, []);
+
+  const goHome = useCallback(() => {
+    goTo('title');
     setDeckId(null);
     setMode(null);
-  };
+  }, [goTo]);
+
+  // 「1つ前の階層」へ もどる（端末の もどる操作 から よばれます）
+  //   もどれたら true／タイトル画面（いちばん上）で もどれなければ false
+  const goBackOneLevel = useCallback(() => {
+    // せってい画面が ひらいているときは、まず それを とじる
+    if (navRef.current.settingsOpen) {
+      closeSettings();
+      return true;
+    }
+    const to = BACK_TO[navRef.current.screen];
+    if (!to) return false; // タイトル画面＝いちばん上
+    if (to === 'title') goHome();
+    else goTo(to);
+    return true;
+  }, [goTo, goHome, closeSettings]);
+
+  // 端末の「もどる」（ナビゲーションバー／ふちからのスワイプ）に つなぐ
+  const askExit = useSystemBack(goBackOneLevel);
 
   const handleFinish = useCallback(
     (res) => {
@@ -1604,9 +1783,9 @@ function MainBoard() {
         return { streak, bestStreak, lastDate: today, days };
       });
 
-      setScreen('result');
+      goTo('result');
     },
-    [bestTimes, deckId, mode, setBestTimes, setStats, setDaily]
+    [bestTimes, deckId, mode, setBestTimes, setStats, setDaily, goTo]
   );
 
   const bestForCurrent =
@@ -1617,13 +1796,13 @@ function MainBoard() {
 
   return (
     <div className="h-full flex flex-col">
-      <Header onHome={goHome} onOpenSettings={() => setSettingsOpen(true)} />
+      <Header onHome={goHome} onOpenSettings={openSettings} />
 
       <main className="flex-1 flex flex-col overflow-hidden min-h-0">
         {screen === 'title' && (
           <TitleScreen
-            onStart={() => setScreen('select')}
-            onRecords={() => setScreen('records')}
+            onStart={() => goTo('select')}
+            onRecords={() => goTo('records')}
             daily={daily}
             totalStamps={totalStamps}
             canInstall={canInstall}
@@ -1636,7 +1815,7 @@ function MainBoard() {
             stats={stats}
             bestTimes={bestTimes}
             daily={daily}
-            onBack={() => setScreen('title')}
+            onBack={goHome}
           />
         )}
 
@@ -1645,7 +1824,7 @@ function MainBoard() {
             bestTimes={bestTimes}
             onPick={(id) => {
               setDeckId(id);
-              setScreen('mode');
+              goTo('mode');
             }}
           />
         )}
@@ -1654,11 +1833,11 @@ function MainBoard() {
           <ModeScreen
             deckId={deckId}
             bestTimes={bestTimes}
-            onBack={() => setScreen('select')}
+            onBack={() => goTo('select')}
             onPick={(m) => {
               setMode(m);
               setPlayToken((t) => t + 1);
-              setScreen('play');
+              goTo('play');
             }}
           />
         )}
@@ -1685,9 +1864,9 @@ function MainBoard() {
             totalStamps={totalStamps}
             onRetry={() => {
               setPlayToken((t) => t + 1);
-              setScreen('play');
+              goTo('play');
             }}
-            onChangeMode={() => setScreen('mode')}
+            onChangeMode={() => goTo('mode')}
             onHome={goHome}
           />
         )}
@@ -1695,16 +1874,18 @@ function MainBoard() {
 
       {showFooter && <Footer />}
 
+      {askExit && <ExitHintToast />}
+
       <SettingsModal
         open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+        onClose={closeSettings}
         effectsOn={effectsOn}
         onToggleEffects={() => setEffectsOn((v) => !v)}
         onResetRecords={() => {
           setBestTimes({});
           setStats({});
           setDaily({ streak: 0, bestStreak: 0, lastDate: null, days: {} });
-          setSettingsOpen(false);
+          closeSettings();
         }}
       />
     </div>

@@ -810,8 +810,14 @@ function LiveTimer({ startRef, className = '' }) {
 function FlashCard({ card, deck, revealed, onReveal, onLeft, onRight }) {
   const swipe = useSwipe({ enabled: revealed, onLeft, onRight });
 
-  const intent =
-    swipe.dx <= -swipe.threshold ? 'left' : swipe.dx >= swipe.threshold ? 'right' : null;
+  // 少しでも動かしたら、どちらに仕分けようとしているかを カードの上に見せます。
+  //   左＝✓わかった（せいかい）／右＝✕もういちど
+  const DIR_MIN = 8; // これ以上うごかしたら 表示（ただのタップでは出さない）
+  const intent = swipe.dx <= -DIR_MIN ? 'left' : swipe.dx >= DIR_MIN ? 'right' : null;
+  // うごかした量にあわせて、だんだん はっきり見えるようにします。
+  const strength = Math.min(1, Math.abs(swipe.dx) / swipe.threshold);
+  const reached = Math.abs(swipe.dx) >= swipe.threshold; // はなせば 確定する状態
+
   const rotate = swipe.dx / 22;
   const style = {
     transform: `translateX(${swipe.dx}px) rotate(${rotate}deg)`,
@@ -822,29 +828,9 @@ function FlashCard({ card, deck, revealed, onReveal, onLeft, onRight }) {
 
   return (
     <div className="relative w-full h-full max-w-3xl flex items-center justify-center no-select">
-      {/* スワイプ方向のヒント（左：せいかい／右：もう一度） */}
-      <div className="absolute inset-0 flex items-center justify-between px-1 pointer-events-none z-0">
-        <div
-          className={`flex flex-col items-center gap-1 text-emerald-600 transition-all duration-150 ${
-            intent === 'left' ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
-          }`}
-        >
-          <Icon path={ICON.check} size={40} />
-          <span className="text-sm font-bold">せいかい</span>
-        </div>
-        <div
-          className={`flex flex-col items-center gap-1 text-rose-500 transition-all duration-150 ${
-            intent === 'right' ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
-          }`}
-        >
-          <Icon path={ICON.close} size={40} />
-          <span className="text-sm font-bold">もう一度</span>
-        </div>
-      </div>
-
       {/* カード本体（利用できる高さ・幅いっぱいに大きく） */}
       <div
-        className="flip-perspective w-full h-full max-w-2xl z-10"
+        className="relative flip-perspective w-full h-full max-w-2xl z-10"
         style={style}
         {...swipe.handlers}
         onClick={() => {
@@ -875,6 +861,39 @@ function FlashCard({ card, deck, revealed, onReveal, onLeft, onRight }) {
             </div>
           </div>
         </div>
+
+        {/* スワイプ方向のラベル（カードの上にかさねて表示）
+            左へ動かしている＝✓わかった／右へ動かしている＝✕もういちど */}
+        {intent && (
+          <div
+            className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none px-4"
+            aria-hidden="true"
+          >
+            <div
+              className={`flex items-center gap-3 px-6 py-3 rounded-2xl shadow-lg text-white font-bold ${
+                intent === 'left' ? 'bg-emerald-500' : 'bg-rose-500'
+              } ${
+                reached
+                  ? intent === 'left'
+                    ? 'ring-4 ring-emerald-200'
+                    : 'ring-4 ring-rose-200'
+                  : ''
+              }`}
+              style={{
+                opacity: 0.4 + strength * 0.6,
+                // しきい値をこえたら、ひとまわり大きくして「はなせば きまる」ことを見せます。
+                transform: `scale(${0.85 + strength * 0.15 + (reached ? 0.07 : 0)}) rotate(${
+                  intent === 'left' ? -6 : 6
+                }deg)`,
+              }}
+            >
+              <Icon path={intent === 'left' ? ICON.check : ICON.close} size={36} />
+              <span className="leading-none" style={{ fontSize: 'clamp(1.5rem, 6vmin, 3rem)' }}>
+                {intent === 'left' ? 'わかった' : 'もういちど'}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

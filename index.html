@@ -6,6 +6,24 @@
   <title>けいさんカード | GIGA山</title>
   <meta name="description" content="小学1年生の計算カードをデジタルで。順番・バラバラの2モード、タイム計測、スワイプ／キーボードで○×判定。まいにち続けたくなる、れんぞく記録とがんばりカレンダー付き。" />
 
+  <!-- ===== PWA：インストールの合図を いちばん先に うけとる =====
+       Chrome（Chromebook をふくむ）は 条件がそろうと すぐに
+       beforeinstallprompt を出します。この登録が Tailwind / React などの
+       読みこみより あとだと、通信がおそい端末では 合図を とりのがして
+       「インストール」ボタンが 出なくなります。そのため いちばん上に置きます。 -->
+  <script>
+    window.__deferredInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      window.__deferredInstallPrompt = e;
+      window.dispatchEvent(new Event('pwa-installable'));
+    });
+    window.addEventListener('appinstalled', function () {
+      window.__deferredInstallPrompt = null;
+      window.dispatchEvent(new Event('pwa-installed'));
+    });
+  </script>
+
   <!-- ===== PWA（アプリとしてインストール／オフライン） ===== -->
   <link rel="manifest" href="./manifest.webmanifest" />
   <meta name="theme-color" content="#f59e0b" />
@@ -183,21 +201,9 @@
   <!-- ===== アプリ本体。ここだけを編集すれば中身を変えられます ===== -->
   <script type="text/babel" data-presets="react-classic" src="./App.jsx"></script>
 
-  <!-- ===== PWA：Service Worker の登録＋インストール案内 ===== -->
+  <!-- ===== PWA：Service Worker の登録 =====
+       （インストールの合図をうけとる部分は <head> のいちばん上にあります） -->
   <script>
-    // 「アプリをインストール」できる状態になったら覚えておき、
-    // React 側（タイトル画面のボタン）から使えるようにする。
-    window.__deferredInstallPrompt = null;
-    window.addEventListener('beforeinstallprompt', function (e) {
-      e.preventDefault();
-      window.__deferredInstallPrompt = e;
-      window.dispatchEvent(new Event('pwa-installable'));
-    });
-    window.addEventListener('appinstalled', function () {
-      window.__deferredInstallPrompt = null;
-      window.dispatchEvent(new Event('pwa-installed'));
-    });
-
     // Service Worker を登録（オフライン対応・アプリ化）
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {

@@ -252,6 +252,40 @@ function vibrate(pattern) {
   }
 }
 
+/* --- PWA（アプリとしてインストール）まわりの こまごました判定 --- */
+
+// すでに「アプリ」として ひらいているか（インストール ずみ）
+function isStandaloneApp() {
+  if (typeof window === 'undefined') return false;
+  try {
+    const mm = window.matchMedia;
+    if (
+      mm &&
+      (mm('(display-mode: standalone)').matches ||
+        mm('(display-mode: fullscreen)').matches ||
+        mm('(display-mode: minimal-ui)').matches)
+    ) {
+      return true;
+    }
+  } catch (e) {
+    /* 未対応でもOK */
+  }
+  return !!navigator.standalone; // iOS（Safari）用
+}
+
+// 端末の種類（インストール手順の 案内を出しわけるため）
+function detectPlatform() {
+  if (typeof navigator === 'undefined') return 'desktop';
+  const ua = navigator.userAgent || '';
+  // iPad は「Macintosh」を名のるので、タッチの有無でも見わけます
+  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) {
+    return 'ios';
+  }
+  if (/CrOS/.test(ua)) return 'chromebook'; // Chromebook（ChromeOS）
+  if (/Android/.test(ua)) return 'android';
+  return 'desktop';
+}
+
 /* =====================================================================
  *  4. アイコン（絵文字のかわりに、シンプルな線画SVGを使います）
  * ===================================================================== */
@@ -716,7 +750,7 @@ function StreakChip({ streak, className = '' }) {
 }
 
 // 6-3. タイトル画面
-function TitleScreen({ onStart, onRecords, daily, totalStamps, canInstall, onInstall }) {
+function TitleScreen({ onStart, onRecords, daily, totalStamps, showInstall, onInstall }) {
   const streak = effectiveStreak(daily);
   const doneToday = !!(daily && daily.days && daily.days[dateKey()]);
   return (
@@ -769,7 +803,9 @@ function TitleScreen({ onStart, onRecords, daily, totalStamps, canInstall, onIns
         せいちょうの きろく
       </button>
 
-      {canInstall && (
+      {/* すでにアプリとして ひらいているとき以外は いつでも出します。
+          Chrome から すぐインストールできないときは、やり方の案内を出します。 */}
+      {showInstall && (
         <button
           onClick={onInstall}
           className="mt-3 inline-flex items-center gap-2 font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-5 py-2.5 rounded-xl shadow-sm hover:shadow transition-all active:scale-95 animate-pop"
@@ -1609,7 +1645,98 @@ function SettingsModal({ open, onClose, effectsOn, onToggleEffects, onResetRecor
   );
 }
 
-// 6-15. 「もう1かいで とじます」の おしらせ（画面の下に すこしのあいだ 出ます）
+// 6-15. インストールのやり方 案内モーダル
+//   Chrome から すぐインストールできない（＝ボタンを押しても
+//   インストールの画面が出ない）ときに、手順を絵で説明します。
+//   ・Chromebook / パソコンの Chrome … アドレスバー右のアイコン、または ︙メニュー
+//   ・Android … ︙メニュー
+//   ・iPhone / iPad … 共有ボタン
+const INSTALL_STEPS = {
+  chromebook: {
+    title: 'Chromebook でインストールするには',
+    steps: [
+      'がめん上の アドレスバーの 右はしを 見てください。',
+      '四角に ↓ がついた アイコン（インストール）を おします。',
+      'アイコンが 見あたらないときは、右上の ︙（たてに 点が3つ）→「保存して共有」→「ページをアプリとしてインストール」を えらびます。',
+      '「インストール」を おすと、ランチャー（〇のボタン）に けいさんカードが ふえます。',
+    ],
+    note: 'すでに インストールずみのときは、アイコンもメニューも 出ません。ランチャーで「けいさんカード」を さがしてみてください。',
+  },
+  desktop: {
+    title: 'パソコンの Chrome でインストールするには',
+    steps: [
+      'アドレスバーの 右はしにある インストールのアイコンを おします。',
+      'アイコンが 出ないときは、右上の ︙ →「保存して共有」→「ページをアプリとしてインストール」を えらびます。',
+      '「インストール」を おすと、アプリとして ひらけるようになります。',
+    ],
+    note: 'Edge のときは ︙ →「アプリ」→「このサイトをアプリとしてインストール」です。',
+  },
+  android: {
+    title: 'Android でインストールするには',
+    steps: [
+      '右上の ︙（たてに 点が3つ）を おします。',
+      '「アプリをインストール」または「ホーム画面に追加」を えらびます。',
+      '「インストール」を おすと、ホーム画面に アイコンが ふえます。',
+    ],
+    note: null,
+  },
+  ios: {
+    title: 'iPhone・iPad でインストールするには',
+    steps: [
+      'Safari の下（iPad は上）にある 共有ボタン（□に ↑）を おします。',
+      'メニューを 下に うごかして「ホーム画面に追加」を えらびます。',
+      '右上の「追加」を おすと、ホーム画面に アイコンが ふえます。',
+    ],
+    note: 'Safari 以外（Chrome など）では「ホーム画面に追加」が出ないことがあります。',
+  },
+};
+
+function InstallGuideModal({ open, platform, onClose }) {
+  if (!open) return null;
+  const guide = INSTALL_STEPS[platform] || INSTALL_STEPS.desktop;
+  return (
+    <div
+      className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 px-6"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-full max-w-sm max-h-[85vh] overflow-auto animate-pop"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 mb-4 text-slate-800">
+          <Icon path={ICON.download} size={20} />
+          <h3 className="text-lg font-bold">{guide.title}</h3>
+        </div>
+
+        <ol className="space-y-3 mb-4">
+          {guide.steps.map((s, i) => (
+            <li key={i} className="flex gap-3 items-start">
+              <span className="shrink-0 w-6 h-6 rounded-full bg-emerald-500 text-white text-sm font-bold flex items-center justify-center">
+                {i + 1}
+              </span>
+              <span className="text-slate-700 leading-relaxed">{s}</span>
+            </li>
+          ))}
+        </ol>
+
+        {guide.note && (
+          <p className="text-sm text-slate-500 leading-relaxed bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-4">
+            {guide.note}
+          </p>
+        )}
+
+        <button
+          onClick={onClose}
+          className="w-full font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-4 py-3 rounded-xl transition-all active:scale-95"
+        >
+          とじる
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// 6-16. 「もう1かいで とじます」の おしらせ（画面の下に すこしのあいだ 出ます）
 function ExitHintToast() {
   return (
     <div className="back-toast fixed left-0 right-0 flex justify-center z-50 px-6 pointer-events-none">
@@ -1642,9 +1769,10 @@ function MainBoard() {
   const [isBest, setIsBest] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [playToken, setPlayToken] = useState(0); // あそぶたびに +1（ゲームをリセット）
-  const [canInstall, setCanInstall] = useState(
-    typeof window !== 'undefined' && !!window.__deferredInstallPrompt
-  );
+  // すでに「アプリ」として ひらいているか（ひらいていれば ボタンは いりません）
+  const [installed, setInstalled] = useState(isStandaloneApp);
+  const [installGuideOpen, setInstallGuideOpen] = useState(false);
+  const platform = useMemo(detectPlatform, []);
 
   // ベストタイム： { red: { order: ms, shuffle: ms }, ... }
   const [bestTimes, setBestTimes] = useLocalStorage('keisan-card-best-v1', {});
@@ -1664,38 +1792,74 @@ function MainBoard() {
   // おと・バイブの ON/OFF（はじめは ON）
   const [effectsOn, setEffectsOn] = useLocalStorage('keisan-card-effects-v1', true);
 
-  // PWA：インストールできる状態か監視
+  // PWA：インストールが すんだら ボタンを ひっこめる
   useEffect(() => {
-    const onAvail = () => setCanInstall(true);
-    const onDone = () => setCanInstall(false);
-    window.addEventListener('pwa-installable', onAvail);
-    window.addEventListener('pwa-installed', onDone);
-    return () => {
-      window.removeEventListener('pwa-installable', onAvail);
-      window.removeEventListener('pwa-installed', onDone);
+    const onDone = () => {
+      setInstalled(true);
+      setInstallGuideOpen(false);
     };
+    window.addEventListener('pwa-installed', onDone);
+
+    // アプリとして ひらいたか（画面の出しかた）が かわったら つけかえる
+    let mq = null;
+    const onModeChange = () => setInstalled(isStandaloneApp());
+    try {
+      mq = window.matchMedia('(display-mode: standalone)');
+      if (mq.addEventListener) mq.addEventListener('change', onModeChange);
+      else if (mq.addListener) mq.addListener(onModeChange);
+    } catch (e) {
+      mq = null;
+    }
+
+    return () => {
+      window.removeEventListener('pwa-installed', onDone);
+      if (mq) {
+        if (mq.removeEventListener) mq.removeEventListener('change', onModeChange);
+        else if (mq.removeListener) mq.removeListener(onModeChange);
+      }
+    };
+  }, []);
+
+  const openInstallGuide = useCallback(() => {
+    navRef.current.installGuideOpen = true;
+    setInstallGuideOpen(true);
+  }, []);
+
+  const closeInstallGuide = useCallback(() => {
+    navRef.current.installGuideOpen = false;
+    setInstallGuideOpen(false);
   }, []);
 
   const doInstall = useCallback(async () => {
     const evt = window.__deferredInstallPrompt;
-    if (!evt) return;
-    evt.prompt();
-    try {
-      await evt.userChoice;
-    } catch (e) {
-      /* キャンセルでもOK */
+    // Chrome から すぐインストールできるときは、そのまま きく
+    if (!evt) {
+      // 合図が とどいていない（すでにインストールずみ／条件がそろっていない など）。
+      // だまって なにも おきないと こまるので、やり方を 案内します。
+      openInstallGuide();
+      return;
     }
-    window.__deferredInstallPrompt = null;
-    setCanInstall(false);
-  }, []);
+    try {
+      evt.prompt();
+      await evt.userChoice;
+      // 一度つかった 合図は もう つかえません。
+      // （ことわった場合は、しばらくすると Chrome が また 合図をくれます）
+      window.__deferredInstallPrompt = null;
+    } catch (e) {
+      // 合図が 古くなっていて つかえなかったときは、やり方を 案内します
+      window.__deferredInstallPrompt = null;
+      openInstallGuide();
+    }
+  }, [openInstallGuide]);
 
   // いま どの画面にいるかを「その場で」読み書きするための控え。
   //   画面の切りかえ（useState）は すこし あとに 反映されるため、
   //   「もどる」を つづけて 2回 すばやく 操作したときに
   //   1回ぶんしか もどらない、ということが おきないようにします。
-  const navRef = useRef({ screen: 'title', settingsOpen: false });
+  const navRef = useRef({ screen: 'title', settingsOpen: false, installGuideOpen: false });
   navRef.current.screen = screen;
   navRef.current.settingsOpen = settingsOpen;
+  navRef.current.installGuideOpen = installGuideOpen;
 
   // 画面を切りかえる（控えも いっしょに 更新）
   const goTo = useCallback((next) => {
@@ -1722,7 +1886,11 @@ function MainBoard() {
   // 「1つ前の階層」へ もどる（端末の もどる操作 から よばれます）
   //   もどれたら true／タイトル画面（いちばん上）で もどれなければ false
   const goBackOneLevel = useCallback(() => {
-    // せってい画面が ひらいているときは、まず それを とじる
+    // モーダル（せってい・インストール案内）が ひらいているときは、まず それを とじる
+    if (navRef.current.installGuideOpen) {
+      closeInstallGuide();
+      return true;
+    }
     if (navRef.current.settingsOpen) {
       closeSettings();
       return true;
@@ -1732,7 +1900,7 @@ function MainBoard() {
     if (to === 'title') goHome();
     else goTo(to);
     return true;
-  }, [goTo, goHome, closeSettings]);
+  }, [goTo, goHome, closeSettings, closeInstallGuide]);
 
   // 端末の「もどる」（ナビゲーションバー／ふちからのスワイプ）に つなぐ
   const askExit = useSystemBack(goBackOneLevel);
@@ -1805,7 +1973,7 @@ function MainBoard() {
             onRecords={() => goTo('records')}
             daily={daily}
             totalStamps={totalStamps}
-            canInstall={canInstall}
+            showInstall={!installed}
             onInstall={doInstall}
           />
         )}
@@ -1887,6 +2055,12 @@ function MainBoard() {
           setDaily({ streak: 0, bestStreak: 0, lastDate: null, days: {} });
           closeSettings();
         }}
+      />
+
+      <InstallGuideModal
+        open={installGuideOpen}
+        platform={platform}
+        onClose={closeInstallGuide}
       />
     </div>
   );

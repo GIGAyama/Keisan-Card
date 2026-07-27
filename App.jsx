@@ -25,6 +25,13 @@
 
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
+// このアプリのバージョン。学習ログ（study.v1）の `appVersion` に入ります。
+// ※ 中身を直したら ここと sw.js の VERSION を そろえて 上げてください。
+const APP_VERSION = '1.1.0';
+
+// 学習ログでの このアプリの名前（仕様書 §3.1 の予約値。変えないこと）
+const STUDY_APP_ID = 'keisan-card';
+
 /* =====================================================================
  *  1. データ：4種類のカードを「計算で」作ります
  * ===================================================================== */
@@ -164,6 +171,14 @@ function shuffleIfNeeded(cards, mode) {
   return mode === 'shuffle' ? shuffle(cards) : cards;
 }
 
+// 学習ログ用の「設問ID」。式そのものが ID になります（例：8+5／13-9）。
+//   ・画面には ＋ － の全角を出しますが、IDは 半角にそろえます
+//   ・カードを ならべかえても 変わらない値であることが 大事です
+//     （番号や 配列の位置を使うと、過去のデータと つながらなくなります）
+function factKey(card) {
+  return `${card.a}${card.op}${card.b}`;
+}
+
 // ミリ秒を「m:ss.t」の形に整えます（タイム表示用）。
 function formatTime(ms) {
   if (ms == null) return '--:--';
@@ -197,6 +212,75 @@ function effectiveStreak(daily) {
     return daily.streak || 0;
   }
   return 0; // 1日 あいてしまうと リセット
+}
+
+// 1回クリアしたときの「まいにち記録」の進めかた。
+//   結果画面の表示・学習ログの `ext.streak` でも 同じ数字を使いたいので、
+//   状態を書きかえる処理から 計算だけを 切り出しています。
+function advanceDaily(prevDaily) {
+  const pd = prevDaily || { streak: 0, bestStreak: 0, lastDate: null, days: {} };
+  const today = dateKey();
+  const days = { ...(pd.days || {}) };
+  const already = !!days[today];
+  days[today] = (days[today] || 0) + 1;
+
+  let streak = pd.streak || 0;
+  if (!already) {
+    if (pd.lastDate === shiftDateKey(today, -1)) streak = streak + 1; // 昨日 → 継続
+    else streak = 1; // 初日、または あいてしまった → やり直し
+  }
+  const bestStreak = Math.max(pd.bestStreak || 0, streak);
+  return { streak, bestStreak, lastDate: today, days };
+}
+
+/* ---- 学習ログ（study.v1）------------------------------------------- *
+ *  共通スキーマのレコードを組み立てて studyLog.js に わたします。
+ *  ・保存だけで、外から見えるところへは 送りません（仕様 §0-1）
+ *  ・氏名・出席番号など 児童を見わけられる情報は 入れません（仕様 §0-2）
+ *  ・主指標は `summary.firstTryCorrect`（1回目で正解した枚数）。
+ *    このアプリは 全部 正解するまで 終わらないため `correct` は
+ *    いつも `count` と同じになり、指標になりません（仕様 §3.4）。
+ * -------------------------------------------------------------------- */
+function saveStudySession({ deckId, mode, res, isBest, bestMs, streak }) {
+  const save = window.StudyLog && window.StudyLog.saveStudyRecord;
+  if (typeof save !== 'function') return null; // studyLog.js が無くても アプリは動く
+  const deck = DECKS[deckId];
+  if (!deck || !mode || !res) return null;
+
+  const count = res.count || 0;
+  const attempted = res.attempted || 0;
+
+  return save({
+    appId: STUDY_APP_ID,
+    appVersion: APP_VERSION,
+    kind: 'session',
+    mode, // 'order'（じゅんばん）／'shuffle'（バラバラ）
+    unit: { id: deckId, title: deck.name, grade: 1, preset: true },
+    source: 'course', // このアプリは 組み込みのカードだけ
+    multiplayer: false,
+    grading: 'objective',
+    startedAt: res.startedAt,
+    endedAt: res.endedAt,
+    elapsedMs: res.time,
+    activeMs: res.activeMs,
+    timeBasis: 'app',
+    status: res.status || 'completed',
+    summary: {
+      count,
+      attempted,
+      firstTryCorrect: res.firstTryCorrect || 0,
+      correct: res.correct || 0,
+    },
+    items: res.items,
+    ext: {
+      mistakes: res.mistakes || 0,
+      bestTimeMs: bestMs == null ? null : bestMs,
+      isBest: !!isBest,
+      msPerCard: attempted ? Math.round(res.time / attempted) : null,
+      wrongCards: res.wrongCards || [],
+      streak: streak || 0,
+    },
+  });
 }
 
 /* =====================================================================
@@ -463,6 +547,20 @@ function useCardDeck(deckId, mode) {
   const [mistakes, setMistakes] = useState(0);         // まちがえた回数（合計）
   const totalRef = useRef(queue.length);               // もとの枚数
 
+  /* ---- 学習ログ用の記録 -------------------------------------------- *
+   *  画面には出さない（描きなおしに関係しない）ので ref に ためます。
+   *  ・cardsRef     … カードごとの { 設問ID・こたえた回数・かかった時間・正解したか }
+   *  ・wrongOnceRef … 一度でも まちがえたカードの key
+   *      ※ 主指標 firstTryCorrect は「ミス回数の合計」から引いてはいけません。
+   *        同じカードを 2回 まちがえると 二重に引かれてしまうためです（仕様 §2.7）。
+   *        まちがえた「カード」を Set に入れ、その個数を使います。
+   *  ・shownAtRef   … いま出ているカードを 出した時刻（1枚あたりの時間を計る）
+   * ------------------------------------------------------------------ */
+  const cardsRef = useRef(new Map());
+  const wrongOnceRef = useRef(new Set());
+  const shownAtRef = useRef(Date.now());
+  const mistakesRef = useRef(0);
+
   const current = queue[0] || null;
   // まちがえた山（retry）が残っているうちは「終わり」ではありません。
   const isFinished = queue.length === 0 && retry.length === 0;
@@ -471,20 +569,71 @@ function useCardDeck(deckId, mode) {
   const currentRef = useRef(current);
   currentRef.current = current;
 
+  // こたえたカードの記録をつける（○×どちらでも通る）
+  const stamp = useCallback((card) => {
+    const now = Date.now();
+    let e = cardsRef.current.get(card.key);
+    if (!e) {
+      e = { q: factKey(card), tries: 0, ms: 0, ok: false };
+      cardsRef.current.set(card.key, e);
+    }
+    e.tries += 1;
+    e.ms += Math.max(0, now - shownAtRef.current);
+    shownAtRef.current = now;
+    return e;
+  }, []);
+
   // 「わかった」：次のカードへ
   const markCorrect = useCallback(() => {
-    if (!currentRef.current) return;
+    const c = currentRef.current;
+    if (!c) return;
+    stamp(c).ok = true;
     setQueue((q) => q.slice(1));
     setDone((d) => d + 1);
-  }, []);
+  }, [stamp]);
 
   // 「まちがい」：このカードを山の最後（retry）へ回す
   const markWrong = useCallback(() => {
     const c = currentRef.current;
     if (!c) return;
+    stamp(c).ok = false;
+    wrongOnceRef.current.add(c.key);
+    mistakesRef.current += 1;
     setQueue((q) => q.slice(1));
     setRetry((r) => [...r, c]);
     setMistakes((m) => m + 1);
+  }, [stamp]);
+
+  // 学習ログ用の集計。完走のときも 中断のときも これを使います。
+  //   まだ1回も出していないカードは items に入れません
+  //   （中断したときに「解いていない問題」を 正解あつかいしないため）。
+  const collect = useCallback(() => {
+    const items = [];
+    const wrongCards = [];
+    let firstTryCorrect = 0;
+    let correct = 0;
+    cardsRef.current.forEach((e, key) => {
+      const firstTry = !wrongOnceRef.current.has(key);
+      if (firstTry) firstTryCorrect += 1;
+      if (e.ok) correct += 1;
+      if (!firstTry) wrongCards.push(e.q);
+      items.push({
+        q: e.q,
+        ok: e.ok,
+        firstTry,
+        tries: e.tries,
+        ms: Math.round(e.ms),
+      });
+    });
+    return {
+      count: totalRef.current,
+      attempted: cardsRef.current.size,
+      firstTryCorrect,
+      correct,
+      mistakes: mistakesRef.current,
+      items,
+      wrongCards,
+    };
   }, []);
 
   // いまの山が空になったら、まちがえた山を合流（＝もう一度出題）
@@ -504,7 +653,52 @@ function useCardDeck(deckId, mode) {
     remaining: queue.length + retry.length,
     markCorrect,
     markWrong,
+    collect,
   };
+}
+
+// 5-2b. じっさいに 操作していた時間（activeMs）を計るフック（仕様 §2.8）
+//   ・タブが 見えていない あいだは 数えません
+//   ・60秒 なにも 操作がないと 止まり、つぎに さわったら また 数えはじめます
+//   elapsedMs（はじめから おわりまで）との 差が大きい児童は、
+//   集中が とぎれている かもしれない、という指導の手がかりになります。
+function useActiveTime() {
+  const ref = useRef(null);
+  if (!ref.current) {
+    const s = { ms: 0, mark: Date.now(), last: Date.now() };
+    // いまの瞬間までを 足しこむ。数えるのは
+    // 「タブが見えていて、かつ 60秒いないに 操作があった」あいだだけ。
+    s.tick = () => {
+      const now = Date.now();
+      if (!document.hidden && now - s.last <= 60000) s.ms += now - s.mark;
+      s.mark = now;
+    };
+    ref.current = s;
+  }
+
+  useEffect(() => {
+    const s = ref.current;
+    const wake = () => {
+      s.tick();
+      s.last = Date.now();
+    };
+    const EVENTS = ['click', 'keydown', 'touchstart', 'pointerdown'];
+    const timer = window.setInterval(s.tick, 1000);
+    document.addEventListener('visibilitychange', s.tick);
+    EVENTS.forEach((ev) => document.addEventListener(ev, wake, true));
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', s.tick);
+      EVENTS.forEach((ev) => document.removeEventListener(ev, wake, true));
+    };
+  }, []);
+
+  // いままでの activeMs（ミリ秒）を返します
+  return useCallback(() => {
+    const s = ref.current;
+    s.tick();
+    return Math.round(s.ms);
+  }, []);
 }
 
 // 5-3. スワイプ操作のフック（指でもマウスでも動きます）
@@ -1035,13 +1229,17 @@ function FlashCard({ card, deck, revealed, onReveal, onLeft, onRight }) {
 }
 
 // 6-8. あそんでいる画面（カード＋タイマー＋すすみ具合）
-function PlayScreen({ deckId, mode, effectsOn, onFinish, onBack }) {
+function PlayScreen({ deckId, mode, effectsOn, reportRef, onFinish, onBack }) {
   const game = useCardDeck(deckId, mode);
+  const getActiveMs = useActiveTime();
   const [revealed, setRevealed] = useState(false);
   const d = DECKS[deckId];
 
   // このプレイの開始時刻（マウント時に確定。もう一度のときは key で作り直される）
   const startRef = useRef(Date.now());
+  // 学習ログ用の開始時刻。タイムの計測（上の startRef）とは別に、
+  // ISO 8601（タイムゾーンつき）の文字列で 持っておきます（仕様 §2.2）。
+  const startedAtRef = useRef(new Date().toISOString());
   const finishedRef = useRef(false);
 
   // カードが変わったら、おもて向きに戻す
@@ -1049,16 +1247,48 @@ function PlayScreen({ deckId, mode, effectsOn, onFinish, onBack }) {
     setRevealed(false);
   }, [game.current && game.current.key, game.remaining]);
 
+  // 学習ログ用の「このプレイの記録」をつくります。
+  //   status … 'completed'（ぜんぶ終わった）／'aborted'（とちゅうで やめた）
+  const buildReport = useCallback(
+    (status) => {
+      const endedAt = Date.now();
+      const elapsedMs = Math.max(0, endedAt - startRef.current);
+      return {
+        status,
+        time: elapsedMs,
+        startedAt: startedAtRef.current,
+        endedAt: new Date(endedAt).toISOString(),
+        // activeMs は「はじめから おわりまで」を こえません。
+        //   計りはじめの ずれで 1ミリ秒ほど 上まわることがあるので そろえます。
+        activeMs: Math.min(getActiveMs(), elapsedMs),
+        total: game.total, // 結果画面で つかう名前（= summary.count）
+        ...game.collect(),
+      };
+    },
+    [game.total, game.collect, getActiveMs]
+  );
+
+  // とちゅうで やめたときも 記録できるよう、司令塔（MainBoard）から
+  // 呼べるところに 置いておきます（仕様 §5.4）。
+  useEffect(() => {
+    if (!reportRef) return undefined;
+    reportRef.current = buildReport;
+    return () => {
+      if (reportRef.current === buildReport) reportRef.current = null;
+    };
+  }, [reportRef, buildReport]);
+
   // ぜんぶ終わったら結果へ（1回だけ）
   useEffect(() => {
     if (game.isFinished && !finishedRef.current) {
       finishedRef.current = true;
-      const finalMs = Date.now() - startRef.current;
+      // 完走したので、このあと「中断」として 記録されないようにします
+      if (reportRef) reportRef.current = null;
       if (effectsOn) {
         Sound.clear();
         vibrate([14, 30, 14, 30, 26]);
       }
-      onFinish({ time: finalMs, mistakes: game.mistakes, total: game.total });
+      onFinish(buildReport('completed'));
     }
     // eslint-disable-next-line
   }, [game.isFinished]);
@@ -1309,6 +1539,20 @@ function ResultScreen({ deckId, mode, result, isBest, best, streak, totalStamps,
             <div className="text-xl font-bold tabular-nums">{formatTime(best)}</div>
           </div>
         </div>
+
+        {/* 1かいめで せいかいした まいすう。
+            このアプリは ぜんぶ 正解するまで 終わらないので、
+            「何回で 正解したか」ではなく「一発で 何枚 いけたか」が
+            じつりょくの めやすになります。 */}
+        {Number.isFinite(result.firstTryCorrect) && (
+          <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-center gap-2">
+            <span className="text-xs text-slate-400">1かいめで せいかい</span>
+            <span className="text-xl font-bold text-slate-700 tabular-nums">
+              {result.firstTryCorrect}
+              <span className="text-sm text-slate-400"> / {result.total}</span>
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="mt-8 flex flex-col sm:flex-row gap-3">
@@ -1861,11 +2105,43 @@ function MainBoard() {
   navRef.current.settingsOpen = settingsOpen;
   navRef.current.installGuideOpen = installGuideOpen;
 
+  // れんしゅう中の「記録をつくる関数」の置き場。PlayScreen が ここに入れ、
+  //   とちゅうで やめたときに 司令塔から よびだします。
+  const playReportRef = useRef(null);
+
+  // とちゅうで やめた（中断）を 学習ログに 残します（仕様 §5.4）。
+  //   中断は「むずかしすぎる」「量が多すぎる」の合図なので、
+  //   完走したときだけ 記録すると、その合図が まるごと 消えてしまいます。
+  //   ※ ベストタイム・スタンプ・れんぞく記録は クリアのごほうびなので
+  //     中断では 更新しません。学習ログにだけ 残します。
+  const flushAbort = useCallback(() => {
+    const build = playReportRef.current;
+    playReportRef.current = null; // 二重に 記録しない
+    if (!build) return;
+    const res = build('aborted');
+    // 1枚も こたえていない中断は 記録しません（まちがえて 開いただけの
+    // 記録で 保存のうわげん（500件）を うめてしまわないように）。
+    if (!res.attempted) return;
+    saveStudySession({
+      deckId,
+      mode,
+      res,
+      isBest: false,
+      bestMs: (bestTimes[deckId] && bestTimes[deckId][mode]) ?? null,
+      streak: effectiveStreak(daily),
+    });
+  }, [deckId, mode, bestTimes, daily]);
+
   // 画面を切りかえる（控えも いっしょに 更新）
-  const goTo = useCallback((next) => {
-    navRef.current.screen = next;
-    setScreen(next);
-  }, []);
+  const goTo = useCallback(
+    (next) => {
+      // れんしゅう画面から ぬけるときは、まず 中断の記録を のこす
+      if (navRef.current.screen === 'play' && next !== 'play') flushAbort();
+      navRef.current.screen = next;
+      setScreen(next);
+    },
+    [flushAbort]
+  );
 
   const openSettings = useCallback(() => {
     navRef.current.settingsOpen = true;
@@ -1920,6 +2196,18 @@ function MainBoard() {
         }));
       }
 
+      // 学習ログ（study.v1）に 1件 のこす。
+      //   ごほうび（ベスト・れんぞく）の 更新後の値を ext に入れたいので、
+      //   さきに 計算だけ すませてから わたします。
+      saveStudySession({
+        deckId,
+        mode,
+        res,
+        isBest: better,
+        bestMs: better ? res.time : prev,
+        streak: effectiveStreak(advanceDaily(daily)),
+      });
+
       // 取り組み回数とタイム履歴を記録
       setStats((s) => {
         const deck = s[deckId] || {};
@@ -1935,25 +2223,11 @@ function MainBoard() {
       });
 
       // まいにち記録（れんぞく・カレンダー）を更新
-      setDaily((prevDaily) => {
-        const pd = prevDaily || { streak: 0, bestStreak: 0, lastDate: null, days: {} };
-        const today = dateKey();
-        const days = { ...(pd.days || {}) };
-        const already = !!days[today];
-        days[today] = (days[today] || 0) + 1;
-
-        let streak = pd.streak || 0;
-        if (!already) {
-          if (pd.lastDate === shiftDateKey(today, -1)) streak = streak + 1; // 昨日 → 継続
-          else streak = 1; // 初日、または あいてしまった → やり直し
-        }
-        const bestStreak = Math.max(pd.bestStreak || 0, streak);
-        return { streak, bestStreak, lastDate: today, days };
-      });
+      setDaily(advanceDaily);
 
       goTo('result');
     },
-    [bestTimes, deckId, mode, setBestTimes, setStats, setDaily, goTo]
+    [bestTimes, daily, deckId, mode, setBestTimes, setStats, setDaily, goTo]
   );
 
   const bestForCurrent =
@@ -2016,6 +2290,7 @@ function MainBoard() {
             deckId={deckId}
             mode={mode}
             effectsOn={effectsOn}
+            reportRef={playReportRef}
             onFinish={handleFinish}
             onBack={goHome}
           />
@@ -2050,6 +2325,11 @@ function MainBoard() {
         effectsOn={effectsOn}
         onToggleEffects={() => setEffectsOn((v) => !v)}
         onResetRecords={() => {
+          // 消すのは このアプリ固有の記録（ベストタイム・れんぞく・スタンプ）だけ。
+          //   ※ 学習ログ `study.records.v1` は 消してはいけません。
+          //     ほかのアプリと 共有しているうえ、まだ送っていないログが
+          //     消えてしまいます（仕様 §1.2）。
+          //     localStorage.clear() も 同じ理由で 使ってはいけません。
           setBestTimes({});
           setStats({});
           setDaily({ streak: 0, bestStreak: 0, lastDate: null, days: {} });

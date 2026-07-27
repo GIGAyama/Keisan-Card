@@ -213,5 +213,41 @@
       });
     }
   </script>
+
+  <!-- ===== PWA：アプリの「背番号（id）」があっているか自己点検 =====
+       gigayama.github.io には多数のアプリが同居していて、ブラウザは
+       manifest の id / scope でアプリを見わけている。リポジトリをコピーして
+       別アプリを作ったときに id を書きかえ忘れると、Chromebook では
+       「このアプリのページが、別のアプリのウィンドウで開いてしまう」
+       という取りちがえが起きる。気づけるように、ここで確認して
+       開発者ツールのコンソールに警告を出す（動作そのものは止めない）。 -->
+  <script>
+    window.addEventListener('load', function () {
+      try {
+        fetch('./manifest.webmanifest', { cache: 'no-store' })
+          .then(function (r) { return r.json(); })
+          .then(function (m) {
+            var here = new URL('./', location.href).pathname; // 例：/Keisan-Card/
+            var problems = [];
+            ['id', 'scope', 'start_url'].forEach(function (k) {
+              if (!m[k]) { problems.push(k + ' が未設定です'); return; }
+              var p = new URL(m[k], location.href).pathname;
+              if (p.indexOf(here) !== 0) {
+                problems.push(k + ' = "' + m[k] + '" が このフォルダ（' + here + '）の外を指しています');
+              }
+            });
+            if (problems.length) {
+              console.warn(
+                '[PWA] manifest.webmanifest の設定が このアプリの場所と合っていません。\n' +
+                'このままだと、インストールしたアプリが 同じサイトの別アプリと 取りちがえられることがあります。\n' +
+                '- ' + problems.join('\n- ') + '\n' +
+                'manifest.webmanifest の id / scope / start_url を "' + here + '" から始まる値に直してください。'
+              );
+            }
+          })
+          .catch(function () { /* 点検できなくてもアプリは動きます */ });
+      } catch (e) { /* 同上 */ }
+    });
+  </script>
 </body>
 </html>

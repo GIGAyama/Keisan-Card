@@ -27,7 +27,7 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
 // このアプリのバージョン。学習ログ（study.v1）の `appVersion` に入ります。
 // ※ 中身を直したら ここと sw.js の VERSION を そろえて 上げてください。
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 
 // 学習ログでの このアプリの名前（仕様書 §3.1 の予約値。変えないこと）
 const STUDY_APP_ID = 'keisan-card';
@@ -249,6 +249,10 @@ function saveStudySession({ deckId, mode, res, isBest, bestMs, streak }) {
 
   const count = res.count || 0;
   const attempted = res.attempted || 0;
+  // 長い離席・タブの破棄で ログを 途中で 締めたときは、
+  //   `res.elapsedMs`（この1件ぶんの時間）が `res.time`（クリアタイム全体）
+  //   より 短くなります。ログには 1件ぶんの時間を のせます（仕様 §5.4）。
+  const elapsedMs = typeof res.elapsedMs === 'number' ? res.elapsedMs : res.time;
 
   return save({
     appId: STUDY_APP_ID,
@@ -261,7 +265,7 @@ function saveStudySession({ deckId, mode, res, isBest, bestMs, streak }) {
     grading: 'objective',
     startedAt: res.startedAt,
     endedAt: res.endedAt,
-    elapsedMs: res.time,
+    elapsedMs,
     activeMs: res.activeMs,
     timeBasis: 'app',
     status: res.status || 'completed',
@@ -274,9 +278,15 @@ function saveStudySession({ deckId, mode, res, isBest, bestMs, streak }) {
     items: res.items,
     ext: {
       mistakes: res.mistakes || 0,
+      // ベストタイムは れんしゅう全体のタイムです。長い離席をはさんで
+      //   ログが 途中で 締まったレコードでは、`elapsedMs`（1件ぶん）と
+      //   土俵が ちがうので 直接くらべないでください。
+      //   （そのレコードは `count` が デッキの全枚数より 少なくなります）
       bestTimeMs: bestMs == null ? null : bestMs,
       isBest: !!isBest,
-      msPerCard: attempted ? Math.round(res.time / attempted) : null,
+      // `count` ではなく `attempted` で割る。中断時に `count` で割ると
+      //   実態より 速く見えてしまうため（仕様 §3.4）。
+      msPerCard: attempted ? Math.round(elapsedMs / attempted) : null,
       wrongCards: res.wrongCards || [],
       streak: streak || 0,
     },
@@ -560,10 +570,17 @@ function useCardDeck(deckId, mode) {
   const wrongOnceRef = useRef(new Set());
   const shownAtRef = useRef(Date.now());
   const mistakesRef = useRef(0);
+  // ログ1件ぶんの もんだい数。ふつうは デッキの枚数ですが、
+  // 長い離席・タブの破棄で ログを 締めたあとは「のこりの枚数」になります。
+  const logTotalRef = useRef(queue.length);
 
   const current = queue[0] || null;
   // まちがえた山（retry）が残っているうちは「終わり」ではありません。
   const isFinished = queue.length === 0 && retry.length === 0;
+
+  // まだ 正解していない枚数（すぐ読めるように ref にも持つ）
+  const remainingRef = useRef(0);
+  remainingRef.current = queue.length + retry.length;
 
   // いま出ているカードを ref にも持っておく（setState を入れ子にしないため）
   const currentRef = useRef(current);
@@ -626,7 +643,7 @@ function useCardDeck(deckId, mode) {
       });
     });
     return {
-      count: totalRef.current,
+      count: logTotalRef.current,
       attempted: cardsRef.current.size,
       firstTryCorrect,
       correct,
@@ -634,6 +651,19 @@ function useCardDeck(deckId, mode) {
       items,
       wrongCards,
     };
+  }, []);
+
+  // 学習ログを 1件 締めたあと、つづきを 新しい1件として 数えなおします
+  // （仕様 §5.4「復帰したら新しいレコードを開始する」）。
+  //   画面の すすみ具合（done / total / まちがい）は そのままにして、
+  //   ログ用の集計だけを まっさらに もどします。
+  //   新しい1件の もんだい数は「まだ 正解していない枚数」です。
+  const resetLog = useCallback(() => {
+    cardsRef.current.clear();
+    wrongOnceRef.current.clear();
+    mistakesRef.current = 0;
+    logTotalRef.current = remainingRef.current;
+    shownAtRef.current = Date.now();
   }, []);
 
   // いまの山が空になったら、まちがえた山を合流（＝もう一度出題）
@@ -654,6 +684,7 @@ function useCardDeck(deckId, mode) {
     markCorrect,
     markWrong,
     collect,
+    resetLog,
   };
 }
 
@@ -693,12 +724,26 @@ function useActiveTime() {
     };
   }, []);
 
-  // いままでの activeMs（ミリ秒）を返します
-  return useCallback(() => {
-    const s = ref.current;
-    s.tick();
-    return Math.round(s.ms);
-  }, []);
+  // get()   … いままでの activeMs（ミリ秒）
+  // reset() … 0 にもどす（ログを1件 締めて、つづきを 数えなおすとき）
+  //   （中身が 毎回 作りなおされると、これを つかう側の
+  //     イベント登録が 描きなおすたびに はりなおしになるため useMemo）
+  return useMemo(
+    () => ({
+      get: () => {
+        const s = ref.current;
+        s.tick();
+        return Math.round(s.ms);
+      },
+      reset: () => {
+        const s = ref.current;
+        s.tick();
+        s.ms = 0;
+        s.last = Date.now();
+      },
+    }),
+    []
+  );
 }
 
 // 5-3. スワイプ操作のフック（指でもマウスでも動きます）
@@ -1229,66 +1274,151 @@ function FlashCard({ card, deck, revealed, onReveal, onLeft, onRight }) {
 }
 
 // 6-8. あそんでいる画面（カード＋タイマー＋すすみ具合）
-function PlayScreen({ deckId, mode, effectsOn, reportRef, onFinish, onBack }) {
+function PlayScreen({ deckId, mode, effectsOn, reportRef, onAbort, onFinish, onBack }) {
   const game = useCardDeck(deckId, mode);
-  const getActiveMs = useActiveTime();
+  // 中身の変わらない関数だけ 取り出しておく（イベント登録を はりなおさないため）
+  const { collect, resetLog } = game;
+  const activeTime = useActiveTime();
   const [revealed, setRevealed] = useState(false);
   const d = DECKS[deckId];
 
   // このプレイの開始時刻（マウント時に確定。もう一度のときは key で作り直される）
+  //   クリアタイム・ベストタイムは、中断をはさんでも この時刻から数えます。
   const startRef = useRef(Date.now());
-  // 学習ログ用の開始時刻。タイムの計測（上の startRef）とは別に、
-  // ISO 8601（タイムゾーンつき）の文字列で 持っておきます（仕様 §2.2）。
-  const startedAtRef = useRef(new Date().toISOString());
   const finishedRef = useRef(false);
+
+  /* ---- 学習ログの「1件ぶん」の区切り（仕様 §5.4）--------------------- *
+   *  ふつうは 1回のれんしゅう＝ログ1件ですが、
+   *  ・5分以上 タブをはなれた
+   *  ・タブが 閉じられた・こわされた（Chromebook のメモリ不足など）
+   *  のときは そこで 1件を 締めます。つづきは 新しい1件になります。
+   *  segRef … いまの1件の 始まり（締めたら 新しくしなおす）
+   *  closedRef … いまの1件を もう締めたか（二重に 記録しないため）
+   * ------------------------------------------------------------------- */
+  const segRef = useRef(null);
+  if (!segRef.current) segRef.current = { at: Date.now(), iso: new Date().toISOString() };
+  const closedRef = useRef(false);
 
   // カードが変わったら、おもて向きに戻す
   useEffect(() => {
     setRevealed(false);
   }, [game.current && game.current.key, game.remaining]);
 
-  // 学習ログ用の「このプレイの記録」をつくります。
+  // 学習ログ用の「1件ぶんの記録」をつくります。
   //   status … 'completed'（ぜんぶ終わった）／'aborted'（とちゅうで やめた）
+  //   endAtMs … 締める時刻。はなれた時刻で締めるときに わたします
+  //             （待っていた5分を 学習時間に 入れないため。仕様 §5.4）
   const buildReport = useCallback(
-    (status) => {
-      const endedAt = Date.now();
-      const elapsedMs = Math.max(0, endedAt - startRef.current);
+    (status, endAtMs) => {
+      const endedAt = endAtMs || Date.now();
+      const seg = segRef.current;
+      // ログ用：この1件ぶんの 時間
+      const elapsedMs = Math.max(0, endedAt - seg.at);
       return {
         status,
-        time: elapsedMs,
-        startedAt: startedAtRef.current,
+        // 画面に出す クリアタイム。中断をはさんでも れんしゅう全体の時間
+        time: Math.max(0, endedAt - startRef.current),
+        startedAt: seg.iso,
         endedAt: new Date(endedAt).toISOString(),
-        // activeMs は「はじめから おわりまで」を こえません。
-        //   計りはじめの ずれで 1ミリ秒ほど 上まわることがあるので そろえます。
-        activeMs: Math.min(getActiveMs(), elapsedMs),
-        total: game.total, // 結果画面で つかう名前（= summary.count）
-        ...game.collect(),
+        elapsedMs,
+        // activeMs は この1件の 時間を こえません（仕様 §2.8 クランプ必須）
+        activeMs: Math.min(activeTime.get(), elapsedMs),
+        total: game.total, // 結果画面で つかう名前（デッキの全枚数）
+        ...collect(),
       };
     },
-    [game.total, game.collect, getActiveMs]
+    [game.total, collect, activeTime]
   );
 
+  // いまの1件を締めて、学習ログに のこします。締めるのは1回だけ。
+  const closeSegment = useCallback(
+    (status, endAtMs) => {
+      if (closedRef.current || finishedRef.current) return null;
+      closedRef.current = true;
+      const res = buildReport(status, endAtMs);
+      if (onAbort) onAbort(res);
+      return res;
+    },
+    [buildReport, onAbort]
+  );
+
+  // 締めたあと、つづきを 新しい1件として 数えなおします。
+  const openSegment = useCallback(() => {
+    segRef.current = { at: Date.now(), iso: new Date().toISOString() };
+    activeTime.reset();
+    resetLog();
+    closedRef.current = false;
+  }, [activeTime, resetLog]);
+
   // とちゅうで やめたときも 記録できるよう、司令塔（MainBoard）から
-  // 呼べるところに 置いておきます（仕様 §5.4）。
+  // 呼べるところに 置いておきます。すでに締めていれば なにもしません。
   useEffect(() => {
     if (!reportRef) return undefined;
-    reportRef.current = buildReport;
+    const close = () => closeSegment('aborted');
+    reportRef.current = close;
     return () => {
-      if (reportRef.current === buildReport) reportRef.current = null;
+      if (reportRef.current === close) reportRef.current = null;
     };
-  }, [reportRef, buildReport]);
+  }, [reportRef, closeSegment]);
+
+  /* ---- 長い離席（5分）で いったん締める（仕様 §5.4）----------------- *
+   *  「もどってきたときに はなれていた時間を はかる」方式です。
+   *  タブが 見えていない あいだ タイマーは 遅らされることがあるので、
+   *  もどってきてから 判定するほうが 確実です。
+   *  5分より 短くしてはいけません。先生の説明を聞くための
+   *  数分の離席が 中断として 記録されてしまいます。
+   * ------------------------------------------------------------------- */
+  useEffect(() => {
+    const AWAY_LIMIT_MS = 5 * 60 * 1000;
+    let hiddenAt = 0;
+    const onVisibility = () => {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+        return;
+      }
+      const leftAt = hiddenAt;
+      hiddenAt = 0;
+      if (!leftAt || Date.now() - leftAt < AWAY_LIMIT_MS) return;
+      // はなれた時刻で締めて、つづきは 新しい1件にする
+      closeSegment('aborted', leftAt);
+      openSegment();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [closeSegment, openSegment]);
+
+  /* ---- タブが 閉じられた・こわされたとき（仕様 §5.4・必須）---------- *
+   *  Chromebook では メモリ不足やスリープで タブが こわされることがあります。
+   *  そのとき 記録中の1件が まるごと 消えないよう、ここで 確定します。
+   *  `beforeunload` は スマホや bfcache の経路で 発火しないことがあるため
+   *  つかいません。
+   *  bfcache から もどってきたときは、のこりの枚数で 新しい1件を 始めます。
+   * ------------------------------------------------------------------- */
+  useEffect(() => {
+    const onPageHide = () => closeSegment('aborted');
+    const onPageShow = (e) => {
+      if (e.persisted && closedRef.current && !finishedRef.current) openSegment();
+    };
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('pageshow', onPageShow);
+    return () => {
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('pageshow', onPageShow);
+    };
+  }, [closeSegment, openSegment]);
 
   // ぜんぶ終わったら結果へ（1回だけ）
   useEffect(() => {
     if (game.isFinished && !finishedRef.current) {
-      finishedRef.current = true;
       // 完走したので、このあと「中断」として 記録されないようにします
+      const res = buildReport('completed');
+      finishedRef.current = true;
       if (reportRef) reportRef.current = null;
       if (effectsOn) {
         Sound.clear();
         vibrate([14, 30, 14, 30, 26]);
       }
-      onFinish(buildReport('completed'));
+      onFinish(res);
     }
     // eslint-disable-next-line
   }, [game.isFinished]);
@@ -2105,32 +2235,37 @@ function MainBoard() {
   navRef.current.settingsOpen = settingsOpen;
   navRef.current.installGuideOpen = installGuideOpen;
 
-  // れんしゅう中の「記録をつくる関数」の置き場。PlayScreen が ここに入れ、
-  //   とちゅうで やめたときに 司令塔から よびだします。
+  // れんしゅう中の「記録を締める関数」の置き場。PlayScreen が ここに入れます。
   const playReportRef = useRef(null);
 
-  // とちゅうで やめた（中断）を 学習ログに 残します（仕様 §5.4）。
-  //   中断は「むずかしすぎる」「量が多すぎる」の合図なので、
-  //   完走したときだけ 記録すると、その合図が まるごと 消えてしまいます。
+  // 中断（とちゅうで やめた・長い離席・タブが こわれた）を 学習ログに
+  //   残します（仕様 §5.4）。中断は「むずかしすぎる」「量が多すぎる」の
+  //   合図なので、完走したときだけ 記録すると その合図が 消えてしまいます。
   //   ※ ベストタイム・スタンプ・れんぞく記録は クリアのごほうびなので
   //     中断では 更新しません。学習ログにだけ 残します。
+  const handleAbort = useCallback(
+    (res) => {
+      // 1枚も こたえていない中断は 記録しません（まちがえて 開いただけの
+      // 記録で 保存のうわげん（500件）を うめてしまわないように）。
+      if (!res || !res.attempted) return;
+      saveStudySession({
+        deckId,
+        mode,
+        res,
+        isBest: false,
+        bestMs: (bestTimes[deckId] && bestTimes[deckId][mode]) ?? null,
+        streak: effectiveStreak(daily),
+      });
+    },
+    [deckId, mode, bestTimes, daily]
+  );
+
+  // 画面を はなれるときに、れんしゅう中の記録を 締めてもらいます。
+  //   すでに 締まっていれば PlayScreen 側で なにも おきません。
   const flushAbort = useCallback(() => {
-    const build = playReportRef.current;
-    playReportRef.current = null; // 二重に 記録しない
-    if (!build) return;
-    const res = build('aborted');
-    // 1枚も こたえていない中断は 記録しません（まちがえて 開いただけの
-    // 記録で 保存のうわげん（500件）を うめてしまわないように）。
-    if (!res.attempted) return;
-    saveStudySession({
-      deckId,
-      mode,
-      res,
-      isBest: false,
-      bestMs: (bestTimes[deckId] && bestTimes[deckId][mode]) ?? null,
-      streak: effectiveStreak(daily),
-    });
-  }, [deckId, mode, bestTimes, daily]);
+    const close = playReportRef.current;
+    if (close) close();
+  }, []);
 
   // 画面を切りかえる（控えも いっしょに 更新）
   const goTo = useCallback(
@@ -2291,6 +2426,7 @@ function MainBoard() {
             mode={mode}
             effectsOn={effectsOn}
             reportRef={playReportRef}
+            onAbort={handleAbort}
             onFinish={handleFinish}
             onBack={goHome}
           />

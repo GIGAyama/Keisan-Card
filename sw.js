@@ -9,7 +9,7 @@
  *  （古い 保存を 消して、新しい ファイルに 入れかえます）
  * ===================================================================== */
 
-const VERSION = 'v1.0.4';
+const VERSION = 'v1.1.0';
 
 // このアプリ専用の目じるし。
 // キャッシュ置き場（CacheStorage）は gigayama.github.io というサイト全体で
@@ -24,6 +24,7 @@ const CORE_ASSETS = [
   './',
   './index.html',
   './App.jsx',
+  './studyLog.js',
   './manifest.webmanifest',
   './favicon.png',
   './icons/icon-192.png',

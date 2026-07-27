@@ -9,7 +9,7 @@
  *  （古い 保存を 消して、新しい ファイルに 入れかえます）
  * ===================================================================== */
 
-const VERSION = 'v1.0.2';
+const VERSION = 'v1.0.3';
 const CORE_CACHE = 'keisan-core-' + VERSION;
 const RUNTIME_CACHE = 'keisan-runtime-' + VERSION;
 

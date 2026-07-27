@@ -4,7 +4,6 @@
   "description": "小学1年生の計算カードをデジタルで。たしざん・ひきざんをカードでれんしゅう。",
   "lang": "ja",
   "dir": "ltr",
-  "id": "./",
   "start_url": "./?source=pwa",
   "scope": "./",
   "display": "standalone",

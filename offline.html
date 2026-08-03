@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#f59e0b" />
+    <title>けいさんカード | インターネットにつながっていません</title>
+    <link rel="icon" type="image/png" href="./favicon.png" />
+    <!--
+      圏外のときに出る画面。「壊れた」と思わせないことが目的なので、
+      アプリと同じ配色（theme_color #f59e0b / background_color #f6f7f9）にしてある。
+
+      この画面が出るのは、通信ができないうえに index.html も保存されていない
+      ときだけ。つまり Tailwind も Google Fonts も取れない。
+      そのため CSS は直書きで1枚に閉じ、フォントもシステムのものを使う。
+      Zen Maru Gothic が端末にあれば使われ、無ければ普通の丸ゴシックに落ちる。
+    -->
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --panel: #ffffff;
+        --text: #3f3f46;
+        --primary: #f59e0b;
+        --line: #e5e7eb;
+      }
+      * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+      body {
+        margin: 0;
+        min-height: 100vh;   /* 古い端末むけのフォールバック */
+        min-height: 100dvh;  /* 実際に使われる値 */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: calc(24px + env(safe-area-inset-top, 0px))
+                 calc(24px + env(safe-area-inset-right, 0px))
+                 calc(24px + env(safe-area-inset-bottom, 0px))
+                 calc(24px + env(safe-area-inset-left, 0px));
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', 'Kosugi Maru', system-ui, sans-serif;
+        line-height: 1.8;
+      }
+      .card {
+        width: 100%;
+        max-width: 420px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        padding: 32px 24px;
+        text-align: center;
+      }
+      .mark { font-size: clamp(48px, 14vw, 76px); line-height: 1; margin-bottom: 8px; }
+      /* 日本語は語の途中で折り返すと読みにくい（「つなが／っていません」など）。
+         文節の区切りは <br> で明示し、それ以外では割らない。 */
+      h1 { font-size: clamp(20px, 5vw, 26px); font-weight: 900; margin: 0 0 12px; word-break: keep-all; }
+      p { word-break: keep-all; }
+      p { font-size: clamp(14px, 3.6vw, 16px); margin: 0 0 22px; }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 56px;      /* 児童の指でも押せる大きさ（Part I §2-4） */
+        width: 100%;
+        padding: 0 20px;
+        font-size: clamp(16px, 4vw, 18px);
+        font-weight: 900;
+        font-family: inherit;
+        /* #f59e0b の上の白は 2.15:1 しかなく読めない。
+           文字用には濃い側を使う（Part I §2-8 の面用／文字用の使い分け）。
+           amber-900 の #78350f でも 4.22:1 で足りず、#451a03 まで下げて 6.97:1。
+           いずれも計算して確かめた値。 */
+        color: #451a03;
+        background: var(--primary);
+        border: none;
+        border-radius: 16px;
+        box-shadow: 0 4px 0 #b45309;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+      .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #b45309; }
+      .btn:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
+      .hint {
+        margin-top: 18px;
+        margin-bottom: 0;
+        font-size: clamp(12px, 3.2vw, 13px);
+        color: #6b7280;   /* #f6f7f9 の上で 4.8:1 */
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+      }
+      @media (forced-colors: active) {
+        .btn { border: 2px solid ButtonText; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="mark" aria-hidden="true">📡</div>
+      <h1>いま インターネットに<br />つながっていません</h1>
+      <p>
+        Wi-Fi が つながっているか たしかめてから、<br />
+        下の ボタンを おしてね。
+      </p>
+      <button class="btn" id="retry" type="button">もういちど ためす</button>
+      <p class="hint">
+        ホームがめんに けいさんカードを おいてあると、<br />
+        つながっていなくても つかえます。
+      </p>
+    </main>
+    <script>
+      document.getElementById('retry').addEventListener('click', function () {
+        location.reload();
+      });
+      // つながり直したら、児童が押さなくても自動でもどる
+      window.addEventListener('online', function () {
+        location.replace('./');
+      });
+    </script>
+  </body>
+</html>

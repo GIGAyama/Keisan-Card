@@ -9,7 +9,7 @@
  *  （古い 保存を 消して、新しい ファイルに 入れかえます）
  * ===================================================================== */
 
-const VERSION = 'v1.2.0';
+const VERSION = 'v1.3.0';
 
 // このアプリ専用の目じるし。
 // キャッシュ置き場（CacheStorage）は gigayama.github.io というサイト全体で
@@ -26,6 +26,7 @@ const CORE_ASSETS = [
   './App.jsx',
   './studyLog.js',
   './manifest.webmanifest',
+  './offline.html',
   './favicon.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -39,8 +40,19 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CORE_CACHE)
-      // 1つでも失敗すると install が止まらないよう、個別に addAll する
-      .then((cache) => cache.addAll(CORE_ASSETS))
+      // 1つでも失敗したときに全部が入らなくなるのを避けるため、1本ずつ入れる。
+      // cache.addAll は「ぜんぶ成功か、ぜんぶ失敗か」しかない。校内Wi-Fiで
+      // 1本だけ取りそこねると、offline.html を含めて何ひとつ保存されないまま
+      // インストールが終わり、圏外のときに出す画面まで無くなってしまう。
+      .then((cache) =>
+        Promise.all(
+          CORE_ASSETS.map((u) =>
+            cache
+              .add(new Request(u, { cache: 'reload' }))
+              .catch(() => console.warn('[sw] 保存できなかったので飛ばす:', u))
+          )
+        )
+      )
       .then(() => self.skipWaiting())
       .catch(() => self.skipWaiting())
   );
@@ -78,9 +90,17 @@ self.addEventListener('fetch', (event) => {
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req).catch(() =>
-        caches
-          .open(CORE_CACHE)
-          .then((c) => c.match('./index.html', { ignoreSearch: true }))
+        caches.open(CORE_CACHE).then(async (c) => {
+          // 保存した本体があればそれを出す（オフラインでも ふだんどおり使える）
+          const app = await c.match('./index.html', { ignoreSearch: true });
+          if (app) return app;
+          // 本体がまだ保存されていない＝初回から圏外だった場合。
+          // ここで何も返さないとブラウザの「接続できません」画面になり、
+          // 児童には「アプリが壊れた」ようにしか見えない。
+          const offline = await c.match('./offline.html');
+          if (offline) return offline;
+          return Response.error();
+        })
       )
     );
     return;

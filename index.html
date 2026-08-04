@@ -2,27 +2,48 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <!-- 拡大は禁止しない（GIGA Standard v5 §2-1）。
+       以前は user-scalable=no / maximum-scale=1.0 を付けていたが、
+       誤ズーム防止の効果より「見えづらい子が拡大できない」害のほうが大きい。
+       誤ズームは CSS の touch-action: manipulation（ダブルタップ拡大の抑止）と、
+       カード操作面の touch-action: none で防いでいる。 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+  <!-- ===== 中身の取りちがえ・書きかえを防ぐ（CSP。§2-13）=====
+       script-src 'self' なので、インラインの <script> と onclick= は動かない。
+       このページの JavaScript は すべて外部ファイル（install-hook.js /
+       vendor/ / js/）に置いてある。あとから index.html に直接
+       <script> を書き足すと、そこだけ黙って動かなくなるので注意すること。
+
+       ※ frame-ancestors（他サイトへの埋め込み禁止）は <meta> では無視され、
+         コンソールに警告が出るだけになる。止めるには HTTP ヘッダーが必要だが
+         GitHub Pages では足せない。独自ドメインや CDN を挟むときは
+         そちら側で frame-ancestors 'self' を設定すること。 -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self';
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src 'self' https://fonts.gstatic.com;
+    img-src 'self' data: blob:;
+    connect-src 'self';
+    worker-src 'self';
+    manifest-src 'self';
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+  " />
+
   <title>けいさんカード | GIGA山</title>
   <meta name="description" content="小学1年生の計算カードをデジタルで。順番・バラバラの2モード、タイム計測、スワイプ／キーボードで○×判定。まいにち続けたくなる、れんぞく記録とがんばりカレンダー付き。" />
 
   <!-- ===== PWA：インストールの合図を いちばん先に うけとる =====
        Chrome（Chromebook をふくむ）は 条件がそろうと すぐに
-       beforeinstallprompt を出します。この登録が Tailwind / React などの
-       読みこみより あとだと、通信がおそい端末では 合図を とりのがして
-       「インストール」ボタンが 出なくなります。そのため いちばん上に置きます。 -->
-  <script>
-    window.__deferredInstallPrompt = null;
-    window.addEventListener('beforeinstallprompt', function (e) {
-      e.preventDefault();
-      window.__deferredInstallPrompt = e;
-      window.dispatchEvent(new Event('pwa-installable'));
-    });
-    window.addEventListener('appinstalled', function () {
-      window.__deferredInstallPrompt = null;
-      window.dispatchEvent(new Event('pwa-installed'));
-    });
-  </script>
+       beforeinstallprompt を出します。この登録が React などの読みこみより
+       あとだと、通信がおそい端末では 合図を とりのがして
+       「インストール」ボタンが 出なくなります。そのため いちばん上に置きます。
+       CSP に 'unsafe-inline' を足さずに済むよう、インラインではなく
+       小さな外部ファイルにして同期読み込みします（§3-2）。 -->
+  <script src="./install-hook.js"></script>
 
   <!-- ===== PWA（アプリとしてインストール／オフライン） ===== -->
   <link rel="manifest" href="./manifest.webmanifest" />
@@ -32,228 +53,51 @@
   <link rel="icon" type="image/png" href="./favicon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="./icons/icon-512.png" />
-  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <!-- ⚠️ apple-touch-icon には透明を含む画像を指さないこと。
+       iOS は透明部分を黒で埋めるため、ホーム画面でアイコンの四隅だけが黒く出る。
+       icons/apple-touch-icon.png は透明を含まない専用画像（180×180）。 -->
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
   <!-- iOS（Safari）でアプリ風に表示 -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="けいさんカード" />
 
-  <!-- ===== Google Fonts ===== -->
-  <!-- UI・見出し：Zen Kaku Gothic New（落ち着いた角ゴシック） -->
-  <!-- 計算式・数字：UDデジタル教科書体（無ければ Zen Maru Gothic にフォールバック） -->
+  <!-- ===== Google Fonts =====
+       UI・見出し：Zen Kaku Gothic New／計算式・数字：Zen Maru Gothic・Kosugi Maru
+       ※ これは「見た目だけ」の依存です（§2-7）。学校のフィルタリングで
+         届かなくても、端末側の日本語フォントに落ちるだけでアプリは動きます。
+         動かなくなる「実行コード」は CDN から取っていません。 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Zen+Maru+Gothic:wght@500;700;900&family=Kosugi+Maru&display=swap" rel="stylesheet" />
 
-  <!-- ===== Tailwind CSS（CDN版・ビルド不要） ===== -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            // ふだんのUI・見出し
-            sans: [
-              '"Zen Kaku Gothic New"',
-              '"Hiragino Kaku Gothic ProN"',
-              '"Noto Sans JP"',
-              'system-ui',
-              'sans-serif',
-            ],
-            // 計算式・数字（教科書体を最優先）
-            textbook: [
-              '"UD デジタル 教科書体 NK-R"',
-              '"UD Digi Kyokasho NK-R"',
-              '"UD Digi Kyokasho N-R"',
-              '"Zen Maru Gothic"',
-              '"Kosugi Maru"',
-              'sans-serif',
-            ],
-          },
-          keyframes: {
-            rise: {
-              '0%': { transform: 'translateY(8px)', opacity: '0' },
-              '100%': { transform: 'translateY(0)', opacity: '1' },
-            },
-            pop: {
-              '0%': { transform: 'scale(0.92)', opacity: '0' },
-              '100%': { transform: 'scale(1)', opacity: '1' },
-            },
-            pulseOnce: {
-              '0%': { transform: 'scale(1)' },
-              '40%': { transform: 'scale(1.14)' },
-              '100%': { transform: 'scale(1)' },
-            },
-          },
-          animation: {
-            rise: 'rise 0.35s ease-out both',
-            pop: 'pop 0.25s ease-out both',
-            'pulse-once': 'pulseOnce 0.5s ease-out',
-          },
-        },
-      },
-    };
-  </script>
-
-  <!-- ===== React 本体（CDN版・ビルド不要） ===== -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-  <!-- ===== Babel（App.jsx をブラウザで翻訳） ===== -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script>
-    // JSX を従来方式（React.createElement）で変換するプリセット。
-    // 自動ランタイムだと出力の先頭に import 文が生成され、
-    // モジュールでない <script> として実行されるため
-    // 「Cannot use import statement outside a module」エラーになる。
-    // classic runtime に固定して import 文の生成を防ぐ。
-    Babel.registerPreset('react-classic', {
-      presets: [[Babel.availablePresets.react, { runtime: 'classic' }]],
-    });
-  </script>
-
-  <style>
-    /* 画面の高さ：スマホのアドレスバーで隙間ができないよう dvh を使用（未対応は 100%） */
-    html, body, #root { height: 100%; }
-    #root { height: 100vh; height: 100dvh; }
-    body {
-      margin: 0;
-      /* シンプルで落ち着いた背景 */
-      background-color: #f6f7f9;
-      color: #0f172a;
-      font-family: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
-      -webkit-tap-highlight-color: transparent;
-      overscroll-behavior: none;
-    }
-    /* iPhone のノッチ／ホームバー分の余白（セーフエリア） */
-    .safe-top { padding-top: env(safe-area-inset-top); }
-    .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-    /* 3Dカードめくり用 */
-    .flip-perspective { perspective: 1600px; }
-    .flip-inner { transform-style: preserve-3d; transition: transform 0.45s cubic-bezier(.2,.8,.2,1); }
-    .flip-inner.is-flipped { transform: rotateY(180deg); }
-    .flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-    .flip-back { transform: rotateY(180deg); }
-    .no-select { -webkit-user-select: none; user-select: none; touch-action: none; }
-    /* スワイプ中の しわけラベル（九九マスターと同じしくみ）
-       カードのわきに置いておき、うごかした向きに合わせて ふわっと出します。 */
-    .swipe-label {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 12px 16px;
-      border-radius: 16px;
-      font-size: 17px;
-      font-weight: 700;
-      color: #fff;
-      white-space: nowrap;
-      opacity: 0;
-      transition: opacity 0.15s;
-      pointer-events: none;
-      z-index: 20;
-      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
-    }
-    .swipe-label-left  { left: 6px; }
-    .swipe-label-right { right: 6px; }
-    .swipe-label.is-shown { opacity: 1; }
-    /* 背が低い画面（スマホ横向きなど）では、まわりを小さくして
-       学習カードをできるだけ大きく見せる */
-    @media (max-height: 520px) {
-      .play-hint { display: none; }
-      .play-cap { display: none; }
-      .play-cardarea { padding-top: 0.25rem; padding-bottom: 0.25rem; }
-      .play-timer { font-size: 1.25rem !important; line-height: 1.6rem !important; }
-    }
-    /* 「もう1かいで とじます」のおしらせ（画面下・ホームバーの上に出す） */
-    .back-toast { bottom: calc(env(safe-area-inset-bottom) + 24px); }
-    /* クリア時の紙ふぶき */
-    .confetti-piece {
-      position: absolute;
-      top: -24px;
-      width: 10px;
-      height: 14px;
-      will-change: transform, opacity;
-      animation-name: confetti-fall;
-      animation-timing-function: cubic-bezier(.2,.6,.4,1);
-      animation-fill-mode: forwards;
-    }
-    @keyframes confetti-fall {
-      0%   { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
-      100% { transform: translateY(112vh) rotate(680deg); opacity: 1; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .flip-inner { transition: none; }
-      .confetti-piece { display: none; }
-    }
-  </style>
+  <!-- ===== スタイル（ビルド済み。原本は src/styles.css と tailwind.config.js） ===== -->
+  <link rel="stylesheet" href="./css/style.css" />
 </head>
 <body>
   <div id="root">
-    <div style="height:100%;display:flex;align-items:center;justify-content:center;color:#64748b;">
-      よみこみ中…
-    </div>
+    <div class="boot-splash">よみこみ中…</div>
   </div>
+
+  <!-- ===== React 本体（自分側に置いてある。CDN から取らない） =====
+       学校のネットワークが unpkg / jsdelivr をふさいでいても起動します。
+       原本は node_modules。`npm run build` で vendor/ へコピーされます。 -->
+  <script src="./vendor/react.production.min.js"></script>
+  <script src="./vendor/react-dom.production.min.js"></script>
 
   <!-- ===== 学習ログ（study.v1）=====
        GIGA山の学習アプリ 共通の しくみです。学習の記録を この端末の
        localStorage（`study.records.v1`）に ためるだけで、
-       どこかへ 送ることは しません。App.jsx より 先に 読みこみます。 -->
+       どこかへ 送ることは しません。app.js より 先に 読みこみます。 -->
   <script src="./studyLog.js"></script>
 
-  <!-- ===== アプリ本体。ここだけを編集すれば中身を変えられます ===== -->
-  <script type="text/babel" data-presets="react-classic" src="./App.jsx"></script>
+  <!-- ===== アプリ本体（ビルド済み。原本は src/App.jsx） =====
+       以前はここで @babel/standalone を使い、ひらくたびに ブラウザの中で
+       JSX を翻訳していました。いまは ビルド時に1回だけ翻訳しています。 -->
+  <script src="./js/app.js"></script>
 
-  <!-- ===== PWA：Service Worker の登録 =====
-       （インストールの合図をうけとる部分は <head> のいちばん上にあります） -->
-  <script>
-    // Service Worker を登録（オフライン対応・アプリ化）
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js').catch(function () {
-          /* 登録できなくてもアプリは通常どおり動きます */
-        });
-      });
-    }
-  </script>
-
-  <!-- ===== PWA：アプリの「背番号（id）」があっているか自己点検 =====
-       gigayama.github.io には多数のアプリが同居していて、ブラウザは
-       manifest の id / scope でアプリを見わけている。リポジトリをコピーして
-       別アプリを作ったときに id を書きかえ忘れると、Chromebook では
-       「このアプリのページが、別のアプリのウィンドウで開いてしまう」
-       という取りちがえが起きる。気づけるように、ここで確認して
-       開発者ツールのコンソールに警告を出す（動作そのものは止めない）。 -->
-  <script>
-    window.addEventListener('load', function () {
-      try {
-        fetch('./manifest.webmanifest', { cache: 'no-store' })
-          .then(function (r) { return r.json(); })
-          .then(function (m) {
-            var here = new URL('./', location.href).pathname; // 例：/Keisan-Card/
-            var problems = [];
-            ['id', 'scope', 'start_url'].forEach(function (k) {
-              if (!m[k]) { problems.push(k + ' が未設定です'); return; }
-              var p = new URL(m[k], location.href).pathname;
-              if (p.indexOf(here) !== 0) {
-                problems.push(k + ' = "' + m[k] + '" が このフォルダ（' + here + '）の外を指しています');
-              }
-            });
-            if (problems.length) {
-              console.warn(
-                '[PWA] manifest.webmanifest の設定が このアプリの場所と合っていません。\n' +
-                'このままだと、インストールしたアプリが 同じサイトの別アプリと 取りちがえられることがあります。\n' +
-                '- ' + problems.join('\n- ') + '\n' +
-                'manifest.webmanifest の id / scope / start_url を "' + here + '" から始まる値に直してください。'
-              );
-            }
-          })
-          .catch(function () { /* 点検できなくてもアプリは動きます */ });
-      } catch (e) { /* 同上 */ }
-    });
-  </script>
+  <!-- ===== PWA：Service Worker の登録と 更新のおしらせ ===== -->
+  <script src="./js/pwa-boot.js"></script>
 </body>
 </html>

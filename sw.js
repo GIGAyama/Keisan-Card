@@ -2,14 +2,20 @@
  *  けいさんカード  Service Worker（PWA：オフライン対応・アプリ化）
  *  ---------------------------------------------------------------------
  *  ・CORE_ASSETS … このサイト自身のファイル（さいしょに まとめて保存）
- *  ・RUNTIME     … React / Tailwind / フォントなどの外部ファイル
+ *  ・RUNTIME     … Google Fonts などの外部ファイル
  *                 （つかった ものから じどうで 保存 = 2回目からは オフラインでも動く）
+ *
+ *  ※ React も スタイルも アプリ本体も、いまは このサイト自身のファイルです。
+ *    CDN から実行コードを取るのを やめたため（GIGA Standard v5 §6）、
+ *    外の通信が ぜんぶ 止まっていても アプリは 起動します。
  *
  *  アプリを 更新したときは、下の VERSION の数字を 1つ 上げてください。
  *  （古い 保存を 消して、新しい ファイルに 入れかえます）
+ *
+ *  この Service Worker は localStorage を一切 操作しません。
  * ===================================================================== */
 
-const VERSION = 'v1.3.0';
+const VERSION = 'v1.4.0';
 
 // このアプリ専用の目じるし。
 // キャッシュ置き場（CacheStorage）は gigayama.github.io というサイト全体で
@@ -23,7 +29,12 @@ const RUNTIME_CACHE = CACHE_PREFIX + 'runtime-' + VERSION;
 const CORE_ASSETS = [
   './',
   './index.html',
-  './App.jsx',
+  './css/style.css',
+  './vendor/react.production.min.js',
+  './vendor/react-dom.production.min.js',
+  './js/app.js',
+  './js/pwa-boot.js',
+  './install-hook.js',
   './studyLog.js',
   './manifest.webmanifest',
   './offline.html',
@@ -53,8 +64,12 @@ self.addEventListener('install', (event) => {
           )
         )
       )
-      .then(() => self.skipWaiting())
-      .catch(() => self.skipWaiting())
+    // ここでは skipWaiting しない（GIGA Standard v5 §3-3）。
+    //   児童が カードをめくっている さいちゅうに 画面が入れかわると、
+    //   数えていた タイムも すすみ具合も 消えてしまう。
+    //   新しい版が用意できたことは 画面側（js/pwa-boot.js）が
+    //   「あたらしい ばんが あります」と おしらせし、
+    //   児童が「さいしんに する」を 押したときだけ 切りかえる。
   );
 });
 
@@ -154,7 +169,9 @@ self.addEventListener('fetch', (event) => {
   // 横取り（キャッシュ）せず、そのまま通信にまかせる。
   if (new URL(req.url).origin === self.location.origin) return;
 
-  // 外部ファイル（React / Tailwind / フォント）：保存を優先しつつ、うしろで更新
+  // 外部ファイル（いまは Google Fonts だけ）：保存を優先しつつ、うしろで更新。
+  // ※ これは「見た目だけ」の依存です。届かなくても端末側のフォントに落ちるだけで、
+  //   アプリの動作は 止まりません（§2-7）。
   event.respondWith(
     caches.open(RUNTIME_CACHE).then((cache) =>
       cache.match(req).then((cached) => {
@@ -172,7 +189,12 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// ページからの「すぐ更新して」に応える
+// ページからの「さいしんに する」に応える。
+//   ここでだけ skipWaiting する。つまり「児童が 押したときだけ」切りかわる。
+//   （文字列の 'SKIP_WAITING' は 前の版の画面から 送られてくることがあるので
+//     どちらの形でも 受けとる）
 self.addEventListener('message', (event) => {
-  if (event.data === 'SKIP_WAITING') self.skipWaiting();
+  const data = event.data;
+  const type = data && typeof data === 'object' ? data.type : data;
+  if (type === 'SKIP_WAITING') self.skipWaiting();
 });

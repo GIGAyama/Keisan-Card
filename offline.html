@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light" />
     <meta name="theme-color" content="#f59e0b" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';" />
     <title>けいさんカード | インターネットにつながっていません</title>
     <link rel="icon" type="image/png" href="./favicon.png" />
     <!--
@@ -12,9 +13,14 @@
       アプリと同じ配色（theme_color #f59e0b / background_color #f6f7f9）にしてある。
 
       この画面が出るのは、通信ができないうえに index.html も保存されていない
-      ときだけ。つまり Tailwind も Google Fonts も取れない。
+      ときだけ。つまり スタイルシートも Google Fonts も取れない。
       そのため CSS は直書きで1枚に閉じ、フォントもシステムのものを使う。
       Zen Maru Gothic が端末にあれば使われ、無ければ普通の丸ゴシックに落ちる。
+
+      ⚠️ この画面では JavaScript に頼らない（§3-4）。
+        「ネットにつながらず、アプリ本体も手元にない」状況で出るページなので、
+        読み込み直しは <a href> で行う。インラインの onclick / <script> は
+        CSP（script-src 'none'）でも動かない。
     -->
     <style>
       :root {
@@ -28,8 +34,7 @@
       html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
       body {
         margin: 0;
-        min-height: 100vh;   /* 古い端末むけのフォールバック */
-        min-height: 100dvh;  /* 実際に使われる値 */
+        min-height: 100dvh;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -41,6 +46,10 @@
         color: var(--text);
         font-family: 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', 'Kosugi Maru', system-ui, sans-serif;
         line-height: 1.8;
+      }
+      /* dvh を知らない古い端末だけ 100vh に落とす */
+      @supports not (min-height: 100dvh) {
+        body { min-height: 100vh; }
       }
       .card {
         width: 100%;
@@ -62,9 +71,10 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-height: 56px;      /* 児童の指でも押せる大きさ（Part I §2-4） */
+        min-height: 56px;      /* 児童の指でも押せる大きさ（Part I §2-9） */
         width: 100%;
         padding: 0 20px;
+        text-decoration: none;
         font-size: clamp(16px, 4vw, 18px);
         font-weight: 900;
         font-family: inherit;
@@ -104,20 +114,12 @@
         Wi-Fi が つながっているか たしかめてから、<br />
         下の ボタンを おしてね。
       </p>
-      <button class="btn" id="retry" type="button">もういちど ためす</button>
+      <!-- JavaScript を使わずに もういちど ひらく（§3-4） -->
+      <a class="btn" href="./">もういちど ためす</a>
       <p class="hint">
         ホームがめんに けいさんカードを おいてあると、<br />
         つながっていなくても つかえます。
       </p>
     </main>
-    <script>
-      document.getElementById('retry').addEventListener('click', function () {
-        location.reload();
-      });
-      // つながり直したら、児童が押さなくても自動でもどる
-      window.addEventListener('online', function () {
-        location.replace('./');
-      });
-    </script>
   </body>
 </html>

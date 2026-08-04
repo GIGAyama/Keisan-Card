@@ -27,7 +27,7 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
 // このアプリのバージョン。学習ログ（study.v1）の `appVersion` に入ります。
 // ※ 中身を直したら ここと sw.js の VERSION を そろえて 上げてください。
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.4.0';
 
 // 学習ログでの このアプリの名前（仕様書 §3.1 の予約値。変えないこと）
 const STUDY_APP_ID = 'keisan-card';
@@ -85,7 +85,25 @@ function makeGreenCards() {
   return cards;
 }
 
-// 4種類のカードの設定。色は実物の計算カードに合わせています。
+/* 4種類のカードの設定。色は実物の計算カードに合わせています。
+ *
+ *  ⚠️ 色は「面用」と「文字用」の2段階で持ちます（GIGA Standard v5 §2-8）。
+ *     Chromebook の液晶は安価で、視野角もコントラストも弱い。
+ *     明るい色を そのまま 白抜き文字の下に敷くと、教室のうしろの席では読めません。
+ *
+ *  ・bg / bar  … 面（カードのおもて・ボタン・すすみ具合バー）
+ *  ・frontText … その面の上に置く文字。面との比が 4.5 以上になる側を選ぶ
+ *  ・text      … 白地の上に置く文字（こたえの数字・ベストタイム）
+ *
+ *  実測（白抜き文字 vs 面）：
+ *    rose-500 3.67 / sky-500 2.77 / emerald-500 2.54 …
+ *    いずれも 4.5 未満で、sky-500・emerald-500 は
+ *    大きな文字の基準（3:1）にも届いていなかった。
+ *    色相は変えず、面を1〜2段だけ濃くして
+ *    rose-600 4.70 / sky-700 5.93 / emerald-700 5.48 にした。
+ *    きいろは面を濃くしても白抜きにできない（amber-400 と白は 1.67）ので、
+ *    もとから文字のほうを濃くしてある（amber-400 × slate-800 で 8.76）。
+ */
 const DECKS = {
   red: {
     id: 'red',
@@ -93,13 +111,13 @@ const DECKS = {
     sub: 'たしざん（くりあがり なし）',
     symbol: '＋',
     make: makeRedCards,
-    bg: 'bg-rose-500',
-    frontText: 'text-white',
-    text: 'text-rose-600',
+    bg: 'bg-rose-600',
+    frontText: 'text-white', // rose-600 × white = 4.70
+    text: 'text-rose-600', // 白地 4.70
     border: 'border-rose-200',
     ring: 'ring-rose-400',
-    bar: 'bg-rose-500',
-    hex: '#f43f5e',
+    bar: 'bg-rose-600',
+    hex: '#e11d48',
   },
   blue: {
     id: 'blue',
@@ -107,13 +125,13 @@ const DECKS = {
     sub: 'ひきざん（くりさがり なし）',
     symbol: '－',
     make: makeBlueCards,
-    bg: 'bg-sky-500',
-    frontText: 'text-white',
-    text: 'text-sky-600',
+    bg: 'bg-sky-700',
+    frontText: 'text-white', // sky-700 × white = 5.93
+    text: 'text-sky-700', // 白地 5.93
     border: 'border-sky-200',
     ring: 'ring-sky-400',
-    bar: 'bg-sky-500',
-    hex: '#0ea5e9',
+    bar: 'bg-sky-700',
+    hex: '#0369a1',
   },
   yellow: {
     id: 'yellow',
@@ -122,12 +140,12 @@ const DECKS = {
     symbol: '＋',
     make: makeYellowCards,
     bg: 'bg-amber-400',
-    frontText: 'text-slate-800', // 黄色は文字を濃くして読みやすく
-    text: 'text-amber-600',
+    frontText: 'text-slate-800', // amber-400 × slate-800 = 8.76
+    text: 'text-amber-700', // 白地 5.02（amber-600 は 3.19 で届いていなかった）
     border: 'border-amber-200',
     ring: 'ring-amber-400',
     bar: 'bg-amber-400',
-    hex: '#f59e0b',
+    hex: '#fbbf24',
   },
   green: {
     id: 'green',
@@ -135,13 +153,13 @@ const DECKS = {
     sub: 'ひきざん（くりさがり あり）',
     symbol: '－',
     make: makeGreenCards,
-    bg: 'bg-emerald-500',
-    frontText: 'text-white',
-    text: 'text-emerald-600',
+    bg: 'bg-emerald-700',
+    frontText: 'text-white', // emerald-700 × white = 5.48
+    text: 'text-emerald-700', // 白地 5.48
     border: 'border-emerald-200',
     ring: 'ring-emerald-400',
-    bar: 'bg-emerald-500',
-    hex: '#10b981',
+    bar: 'bg-emerald-700',
+    hex: '#047857',
   },
 };
 
@@ -923,10 +941,13 @@ function Logo({ size = 28 }) {
 function Header({ onHome, onOpenSettings }) {
   return (
     <nav className="safe-top bg-white border-b-4 border-amber-500 px-4 sm:px-6 py-2.5 flex justify-between items-center shadow-sm z-10 shrink-0">
+      {/* ロゴは 高さ 28px しかない。tap-44 で 当たり判定だけを 44px に広げる。
+          min-height を当てると ヘッダーの行が 折り返して 別の破綻を生む（§2-9） */}
       <button
         onClick={onHome}
-        className="flex items-center gap-2.5 transition-all active:scale-95"
+        className="tap-44 flex items-center gap-2.5 transition-all active:scale-95"
         title="さいしょの がめんに もどる"
+        aria-label="さいしょの がめんに もどる"
       >
         <Logo size={26} />
         <span className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight">
@@ -935,7 +956,7 @@ function Header({ onHome, onOpenSettings }) {
       </button>
       <button
         onClick={onOpenSettings}
-        className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all active:scale-95"
+        className="tap-44 w-10 h-10 flex items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-700 transition-all active:scale-95"
         title="せってい"
         aria-label="せってい"
       >
@@ -949,13 +970,14 @@ function Header({ onHome, onOpenSettings }) {
 function Footer() {
   const year = new Date().getFullYear();
   return (
-    <footer className="safe-bottom w-full bg-white border-t border-slate-200 pt-3 pb-2 text-center text-sm text-slate-500 font-bold shadow-sm shrink-0">
+    <footer className="safe-bottom w-full bg-white border-t border-slate-200 pt-3 pb-2 text-center text-sm text-slate-600 font-bold shadow-sm shrink-0">
       © {year} けいさんカード{' '}
+      {/* このリンクは既定で 35×11px しかない。tap-44 で当たり判定だけを広げる（§2-9） */}
       <a
         href="https://note.com/cute_borage86"
         target="_blank"
         rel="noopener noreferrer"
-        className="text-amber-600 hover:text-amber-700 underline underline-offset-2 transition-all active:scale-95 inline-block"
+        className="tap-44 text-amber-700 hover:text-amber-800 underline underline-offset-2 transition-all active:scale-95 inline-block"
       >
         GIGA山
       </a>
@@ -963,11 +985,13 @@ function Footer() {
   );
 }
 
-// 共通：白いカードのプライマリボタン
+// 共通：大きな主役ボタン
+//   文字色は ここでは決めない。面の色と セットで 呼ぶ側が わたす。
+//   （明るい面に 白抜き文字を のせると、Chromebook の液晶では読めない。§2-8）
 function PrimaryButton({ children, className = '', ...props }) {
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 font-bold text-white px-7 py-3.5 rounded-xl shadow-sm hover:shadow transition-all active:scale-95 ${className}`}
+      className={`inline-flex items-center justify-center gap-2 font-bold px-7 py-3.5 rounded-xl shadow-sm hover:shadow transition-all active:scale-95 ${className}`}
       {...props}
     >
       {children}
@@ -980,7 +1004,7 @@ function StreakChip({ streak, className = '' }) {
   if (!streak || streak < 2) return null;
   return (
     <span
-      className={`inline-flex items-center gap-1 font-bold text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-3 py-1 ${className}`}
+      className={`inline-flex items-center gap-1 font-bold text-orange-700 bg-orange-50 border border-orange-200 rounded-full px-3 py-1 ${className}`}
     >
       <Icon path={ICON.flame} size={16} fill />
       {streak}にち れんぞく
@@ -993,11 +1017,13 @@ function TitleScreen({ onStart, onRecords, daily, totalStamps, showInstall, onIn
   const streak = effectiveStreak(daily);
   const doneToday = !!(daily && daily.days && daily.days[dateKey()]);
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-6 text-center overflow-auto py-6">
+    <div className="flex-1 flex flex-col items-center justify-center px-6 text-center overflow-auto scroll-area py-6">
       <div className="animate-rise">
         <Logo size={72} />
       </div>
-      <h1 className="mt-6 text-4xl sm:text-5xl font-black text-slate-800 tracking-tight animate-rise">
+      {/* 主役の見出しは clamp()（t-title）。text-5xl のような固定サイズだと
+          320px のスマホではみ出し、電子黒板では小さい（§2-4） */}
+      <h1 className="mt-6 t-title font-black text-slate-800 tracking-tight animate-rise">
         けいさんカード
       </h1>
 
@@ -1005,14 +1031,14 @@ function TitleScreen({ onStart, onRecords, daily, totalStamps, showInstall, onIn
       <div className="mt-4 min-h-[2rem] flex flex-wrap items-center justify-center gap-2 animate-rise">
         {streak >= 2 && <StreakChip streak={streak} />}
         {totalStamps > 0 && (
-          <span className="inline-flex items-center gap-1 font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+          <span className="inline-flex items-center gap-1 font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
             <Icon path={ICON.star} size={16} fill />
             スタンプ {totalStamps}こ
           </span>
         )}
       </div>
 
-      <p className="mt-3 text-slate-500 text-base sm:text-lg leading-relaxed animate-rise">
+      <p className="mt-3 text-slate-600 t-lead leading-relaxed animate-rise">
         {doneToday ? (
           <>
             きょうも できたね！ えらい！<br />
@@ -1028,7 +1054,7 @@ function TitleScreen({ onStart, onRecords, daily, totalStamps, showInstall, onIn
 
       <PrimaryButton
         onClick={onStart}
-        className="mt-8 bg-amber-500 hover:bg-amber-600 text-lg sm:text-xl px-10 py-4 animate-pop"
+        className="mt-8 bg-amber-500 hover:bg-amber-600 text-slate-900 text-lg sm:text-xl px-10 py-4 animate-pop"
       >
         <Icon path={ICON.play} size={20} fill />
         はじめる
@@ -1047,7 +1073,7 @@ function TitleScreen({ onStart, onRecords, daily, totalStamps, showInstall, onIn
       {showInstall && (
         <button
           onClick={onInstall}
-          className="mt-3 inline-flex items-center gap-2 font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-5 py-2.5 rounded-xl shadow-sm hover:shadow transition-all active:scale-95 animate-pop"
+          className="mt-3 inline-flex items-center gap-2 font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-5 py-2.5 rounded-xl shadow-sm hover:shadow transition-all active:scale-95 animate-pop"
         >
           <Icon path={ICON.download} size={18} />
           アプリとして インストール
@@ -1071,9 +1097,9 @@ function DeckSwatch({ deck, size = 'w-14 h-14 text-3xl' }) {
 // 6-4. カードの色をえらぶ画面
 function SelectScreen({ onPick, bestTimes }) {
   return (
-    <div className="flex-1 flex flex-col items-center px-4 py-8 overflow-auto">
+    <div className="flex-1 flex flex-col items-center px-4 py-8 overflow-auto scroll-area">
       <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">カードを えらぶ</h2>
-      <p className="text-slate-500 mt-2 mb-7 text-sm sm:text-base">
+      <p className="text-slate-600 mt-2 mb-7 text-sm sm:text-base">
         れんしゅうしたい いろの カードを えらんでください。
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full max-w-2xl">
@@ -1089,8 +1115,8 @@ function SelectScreen({ onPick, bestTimes }) {
               <DeckSwatch deck={d} />
               <div className="min-w-0">
                 <div className="text-lg font-bold text-slate-800">{d.name}</div>
-                <div className="text-sm text-slate-500 truncate">{d.sub}</div>
-                <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-400">
+                <div className="text-sm text-slate-600 truncate">{d.sub}</div>
+                <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-600">
                   <span>{DECK_COUNTS[id]}もん</span>
                   {best != null && (
                     <span className={`inline-flex items-center gap-1 font-bold ${d.text}`}>
@@ -1135,12 +1161,12 @@ function ModeScreen({ deckId, onPick, onBack, bestTimes }) {
     },
   ];
   return (
-    <div className="flex-1 flex flex-col items-center px-4 py-8 overflow-auto">
+    <div className="flex-1 flex flex-col items-center px-4 py-8 overflow-auto scroll-area">
       <div className="flex items-center gap-3">
         <DeckSwatch deck={d} size="w-11 h-11 text-2xl" />
         <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">{d.name}</h2>
       </div>
-      <p className="text-slate-500 mt-2 mb-7 text-sm sm:text-base">モードを えらんでください。</p>
+      <p className="text-slate-600 mt-2 mb-7 text-sm sm:text-base">モードを えらんでください。</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-xl">
         {modes.map((m) => (
@@ -1153,7 +1179,7 @@ function ModeScreen({ deckId, onPick, onBack, bestTimes }) {
               <Icon path={m.icon} size={24} />
             </div>
             <div className="text-xl font-bold text-slate-800 mb-1">{m.title}</div>
-            <div className="text-sm text-slate-500 whitespace-pre-line leading-relaxed">{m.desc}</div>
+            <div className="text-sm text-slate-600 whitespace-pre-line leading-relaxed">{m.desc}</div>
             {m.best != null && (
               <div className={`mt-3 inline-flex items-center gap-1 text-sm font-bold ${d.text}`}>
                 <Icon path={ICON.trophy} size={14} />
@@ -1166,7 +1192,7 @@ function ModeScreen({ deckId, onPick, onBack, bestTimes }) {
 
       <button
         onClick={onBack}
-        className="mt-8 inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-700 bg-white border border-slate-200 px-5 py-2.5 rounded-xl shadow-sm transition-all active:scale-95"
+        className="mt-8 inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-700 bg-white border border-slate-200 px-5 py-2.5 rounded-xl shadow-sm transition-all active:scale-95"
       >
         <Icon path={ICON.arrowLeft} size={18} />
         カードを えらびなおす
@@ -1221,14 +1247,14 @@ function FlashCard({ card, deck, revealed, onReveal, onLeft, onRight }) {
       {/* スワイプ方向のラベル（カードとは別に、りょうわきへ置いておきます）
           左へ動かしている＝✓わかった／右へ動かしている＝✕もういちど */}
       <div
-        className={`swipe-label swipe-label-left bg-emerald-500 ${showLeft ? 'is-shown' : ''}`}
+        className={`swipe-label swipe-label-left bg-emerald-700 ${showLeft ? 'is-shown' : ''}`}
         aria-hidden="true"
       >
         <Icon path={ICON.check} size={22} />
         わかった
       </div>
       <div
-        className={`swipe-label swipe-label-right bg-rose-500 ${showRight ? 'is-shown' : ''}`}
+        className={`swipe-label swipe-label-right bg-rose-600 ${showRight ? 'is-shown' : ''}`}
         aria-hidden="true"
       >
         <Icon path={ICON.close} size={22} />
@@ -1250,8 +1276,7 @@ function FlashCard({ card, deck, revealed, onReveal, onLeft, onRight }) {
             className={`flip-face absolute inset-0 rounded-3xl shadow-lg ${deck.bg} flex items-center justify-center cursor-pointer p-4`}
           >
             <div
-              className={`font-textbook ${deck.frontText} font-bold tracking-wide leading-none`}
-              style={{ fontSize: 'clamp(2.75rem, 13vmin, 8rem)' }}
+              className={`font-textbook t-card-front ${deck.frontText} font-bold tracking-wide leading-none`}
             >
               {expr}
             </div>
@@ -1261,8 +1286,7 @@ function FlashCard({ card, deck, revealed, onReveal, onLeft, onRight }) {
             className={`flip-face flip-back absolute inset-0 rounded-3xl shadow-lg bg-white border ${deck.border} flex items-center justify-center p-4`}
           >
             <div
-              className={`font-textbook ${deck.text} font-bold leading-none`}
-              style={{ fontSize: 'clamp(3.5rem, 18vmin, 11rem)' }}
+              className={`font-textbook t-card-back ${deck.text} font-bold leading-none`}
             >
               {card.ans}
             </div>
@@ -1482,14 +1506,14 @@ function PlayScreen({ deckId, mode, effectsOn, reportRef, onAbort, onFinish, onB
         <div className="flex items-center justify-between gap-2">
           <button
             onClick={onBack}
-            className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 bg-white border border-slate-200 px-3 py-2 rounded-lg shadow-sm transition-all active:scale-95"
+            className="tap-44 inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-700 bg-white border border-slate-200 px-3 py-2 rounded-lg shadow-sm transition-all active:scale-95"
           >
             <Icon path={ICON.arrowLeft} size={16} />
             やめる
           </button>
 
           <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-1.5 rounded-xl shadow-sm">
-            <span className="text-slate-400">
+            <span className="text-slate-600">
               <Icon path={ICON.clock} size={18} />
             </span>
             <LiveTimer
@@ -1498,7 +1522,7 @@ function PlayScreen({ deckId, mode, effectsOn, reportRef, onAbort, onFinish, onB
             />
           </div>
 
-          <div className="text-sm text-slate-500 bg-white border border-slate-200 px-3 py-2 rounded-lg shadow-sm">
+          <div className="text-sm text-slate-600 bg-white border border-slate-200 px-3 py-2 rounded-lg shadow-sm">
             のこり <span className="font-bold text-slate-800">{game.remaining}</span>
           </div>
         </div>
@@ -1510,9 +1534,10 @@ function PlayScreen({ deckId, mode, effectsOn, reportRef, onAbort, onFinish, onB
             style={{ width: `${progress}%` }}
           />
         </div>
-        <div className="play-cap mt-1.5 text-center text-xs text-slate-400">
+        {/* すすみ具合は 読み上げでも 分かるようにする（§4） */}
+        <div className="play-cap mt-1.5 text-center text-xs text-slate-600" aria-live="polite">
           {game.done} / {game.total} もん せいかい
-          {game.mistakes > 0 && <span className="ml-2 text-rose-400">まちがい {game.mistakes}</span>}
+          {game.mistakes > 0 && <span className="ml-2 text-rose-600">まちがい {game.mistakes}</span>}
         </div>
       </div>
 
@@ -1537,24 +1562,24 @@ function PlayScreen({ deckId, mode, effectsOn, reportRef, onAbort, onFinish, onB
           {!revealed ? (
             <PrimaryButton
               onClick={() => setRevealed(true)}
-              className={`${d.bg} text-lg px-10`}
+              className={`${d.bg} ${d.frontText} text-lg px-10`}
             >
               こたえを みる
             </PrimaryButton>
           ) : (
             <>
-              <PrimaryButton onClick={handleCorrect} className="bg-emerald-500 hover:bg-emerald-600 px-8">
+              <PrimaryButton onClick={handleCorrect} className="bg-emerald-700 hover:bg-emerald-800 text-white px-8">
                 <Icon path={ICON.check} size={20} />
                 わかった
               </PrimaryButton>
-              <PrimaryButton onClick={handleWrong} className="bg-rose-500 hover:bg-rose-600 px-8">
+              <PrimaryButton onClick={handleWrong} className="bg-rose-600 hover:bg-rose-700 text-white px-8">
                 <Icon path={ICON.close} size={20} />
                 もういちど
               </PrimaryButton>
             </>
           )}
         </div>
-        <p className="play-hint mt-2.5 text-center text-xs text-slate-400">
+        <p className="play-hint mt-2.5 text-center text-xs text-slate-600">
           {revealed
             ? 'スペース／Enterで わかった → つぎへ（← わかった ／ もういちど →）'
             : 'カードを タップ／スペース・Enterで こたえ（れんだでどんどんすすむ）'}
@@ -1621,7 +1646,7 @@ function ResultScreen({ deckId, mode, result, isBest, best, streak, totalStamps,
   const perfect = result.mistakes === 0;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 text-center overflow-auto">
+    <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 text-center overflow-auto scroll-area">
       <Confetti count={isBest ? 56 : 36} />
 
       {isBest && (
@@ -1630,20 +1655,23 @@ function ResultScreen({ deckId, mode, result, isBest, best, streak, totalStamps,
           しんきろく
         </div>
       )}
-      <h2 className="text-3xl sm:text-4xl font-black text-slate-800 animate-rise">{praise}</h2>
-      <div className="text-slate-500 mt-2 mb-4">
+      {/* クリアしたことは 読み上げでも 伝える（§4） */}
+      <h2 className="text-3xl sm:text-4xl font-black text-slate-800 animate-rise" aria-live="polite">
+        {praise}
+      </h2>
+      <div className="text-slate-600 mt-2 mb-4">
         {d.name}・{modeName}モード
       </div>
 
       {/* もらえた ごほうび（スタンプ・れんぞく） */}
       <div className="mb-4 flex flex-wrap items-center justify-center gap-2 animate-pop">
-        <span className="inline-flex items-center gap-1 font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+        <span className="inline-flex items-center gap-1 font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
           <Icon path={ICON.star} size={16} fill />
           スタンプ +1（ぜんぶで {totalStamps}こ）
         </span>
         {streak >= 2 && <StreakChip streak={streak} />}
         {perfect && (
-          <span className="inline-flex items-center gap-1 font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1">
+          <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1">
             <Icon path={ICON.check} size={16} />
             ぜんもん せいかい
           </span>
@@ -1651,21 +1679,21 @@ function ResultScreen({ deckId, mode, result, isBest, best, streak, totalStamps,
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-7 w-full max-w-sm animate-pop">
-        <div className="text-slate-400 text-sm">クリアタイム</div>
-        <div className={`mt-1 text-6xl font-black ${d.text} tabular-nums`}>
+        <div className="text-slate-600 text-sm">クリアタイム</div>
+        <div className={`mt-1 t-result-time font-black ${d.text} tabular-nums`}>
           {formatTime(result.time)}
         </div>
         <div className="mt-6 grid grid-cols-3 gap-2 text-slate-700 border-t border-slate-100 pt-5">
           <div>
-            <div className="text-xs text-slate-400">もんだい</div>
+            <div className="text-xs text-slate-600">もんだい</div>
             <div className="text-xl font-bold tabular-nums">{result.total}</div>
           </div>
           <div>
-            <div className="text-xs text-slate-400">まちがい</div>
+            <div className="text-xs text-slate-600">まちがい</div>
             <div className="text-xl font-bold tabular-nums">{result.mistakes}</div>
           </div>
           <div>
-            <div className="text-xs text-slate-400">ベスト</div>
+            <div className="text-xs text-slate-600">ベスト</div>
             <div className="text-xl font-bold tabular-nums">{formatTime(best)}</div>
           </div>
         </div>
@@ -1676,17 +1704,17 @@ function ResultScreen({ deckId, mode, result, isBest, best, streak, totalStamps,
             じつりょくの めやすになります。 */}
         {Number.isFinite(result.firstTryCorrect) && (
           <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-center gap-2">
-            <span className="text-xs text-slate-400">1かいめで せいかい</span>
+            <span className="text-xs text-slate-600">1かいめで せいかい</span>
             <span className="text-xl font-bold text-slate-700 tabular-nums">
               {result.firstTryCorrect}
-              <span className="text-sm text-slate-400"> / {result.total}</span>
+              <span className="text-sm text-slate-600"> / {result.total}</span>
             </span>
           </div>
         )}
       </div>
 
       <div className="mt-8 flex flex-col sm:flex-row gap-3">
-        <PrimaryButton onClick={onRetry} className={`${d.bg}`}>
+        <PrimaryButton onClick={onRetry} className={`${d.bg} ${d.frontText}`}>
           <Icon path={ICON.replay} size={20} />
           もういちど
         </PrimaryButton>
@@ -1740,7 +1768,7 @@ function MiniBarChart({ history, deck }) {
   const recent = history.slice(-12);
   if (recent.length === 0) {
     return (
-      <div className="h-20 flex items-center justify-center text-xs text-slate-300">
+      <div className="h-20 flex items-center justify-center text-xs text-slate-600">
         まだ きろくが ありません
       </div>
     );
@@ -1798,7 +1826,7 @@ function MonthCalendar({ days }) {
           <div
             key={w}
             className={`text-center text-[11px] font-bold ${
-              i === 0 ? 'text-rose-400' : i === 6 ? 'text-sky-400' : 'text-slate-400'
+              i === 0 ? 'text-rose-600' : i === 6 ? 'text-sky-700' : 'text-slate-600'
             }`}
           >
             {w}
@@ -1817,9 +1845,9 @@ function MonthCalendar({ days }) {
                   : 'border border-slate-100'
               }`}
             >
-              <span className={c.done ? 'text-amber-700 font-bold' : 'text-slate-400'}>{c.d}</span>
+              <span className={c.done ? 'text-amber-700 font-bold' : 'text-slate-600'}>{c.d}</span>
               {c.done && (
-                <span className="text-amber-500 -mt-0.5">
+                <span className="text-amber-700 -mt-0.5">
                   <Icon path={ICON.star} size={11} fill />
                 </span>
               )}
@@ -1837,12 +1865,12 @@ function RecordsScreen({ stats, bestTimes, daily, onBack }) {
   const streak = effectiveStreak(daily);
   const bestStreak = (daily && daily.bestStreak) || 0;
   return (
-    <div className="flex-1 flex flex-col items-center px-4 py-8 overflow-auto">
+    <div className="flex-1 flex flex-col items-center px-4 py-8 overflow-auto scroll-area">
       <div className="flex items-center gap-2 text-slate-800">
         <Icon path={ICON.chart} size={26} />
         <h2 className="text-2xl sm:text-3xl font-bold">せいちょうの きろく</h2>
       </div>
-      <p className="text-slate-500 mt-2 mb-6 text-sm sm:text-base text-center">
+      <p className="text-slate-600 mt-2 mb-6 text-sm sm:text-base text-center">
         いままで <span className="font-bold text-slate-700">{grand}</span> かい とりくみました。
         まいにち つづけて、タイムを ちぢめよう！
       </p>
@@ -1851,25 +1879,25 @@ function RecordsScreen({ stats, bestTimes, daily, onBack }) {
       <div className="w-full max-w-2xl bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5 mb-4">
         <div className="grid grid-cols-3 gap-2 text-center mb-4">
           <div className="rounded-xl bg-orange-50 border border-orange-100 py-3">
-            <div className="flex items-center justify-center gap-1 text-orange-600 mb-1">
+            <div className="flex items-center justify-center gap-1 text-orange-700 mb-1">
               <Icon path={ICON.flame} size={16} fill />
             </div>
-            <div className="text-2xl font-black text-orange-600 tabular-nums">{streak}</div>
-            <div className="text-[11px] text-slate-500">にち れんぞく</div>
+            <div className="text-2xl font-black text-orange-700 tabular-nums">{streak}</div>
+            <div className="text-[11px] text-slate-600">にち れんぞく</div>
           </div>
           <div className="rounded-xl bg-slate-50 border border-slate-100 py-3">
-            <div className="flex items-center justify-center gap-1 text-slate-500 mb-1">
+            <div className="flex items-center justify-center gap-1 text-slate-600 mb-1">
               <Icon path={ICON.trophy} size={16} />
             </div>
             <div className="text-2xl font-black text-slate-700 tabular-nums">{bestStreak}</div>
-            <div className="text-[11px] text-slate-500">さいこう れんぞく</div>
+            <div className="text-[11px] text-slate-600">さいこう れんぞく</div>
           </div>
           <div className="rounded-xl bg-amber-50 border border-amber-100 py-3">
-            <div className="flex items-center justify-center gap-1 text-amber-500 mb-1">
+            <div className="flex items-center justify-center gap-1 text-amber-700 mb-1">
               <Icon path={ICON.star} size={16} fill />
             </div>
-            <div className="text-2xl font-black text-amber-600 tabular-nums">{grand}</div>
-            <div className="text-[11px] text-slate-500">スタンプ</div>
+            <div className="text-2xl font-black text-amber-700 tabular-nums">{grand}</div>
+            <div className="text-[11px] text-slate-600">スタンプ</div>
           </div>
         </div>
         <div className="border-t border-slate-100 pt-4">
@@ -1890,23 +1918,23 @@ function RecordsScreen({ stats, bestTimes, daily, onBack }) {
                 <DeckSwatch deck={d} size="w-11 h-11 text-2xl" />
                 <div className="min-w-0">
                   <div className="text-lg font-bold text-slate-800">{d.name}</div>
-                  <div className="text-xs text-slate-500 truncate">{d.sub}</div>
+                  <div className="text-xs text-slate-600 truncate">{d.sub}</div>
                 </div>
               </div>
 
               <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                 <div>
-                  <div className="text-[11px] text-slate-400">かいすう</div>
+                  <div className="text-[11px] text-slate-600">かいすう</div>
                   <div className="text-xl font-bold text-slate-800 tabular-nums">{plays}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-400">ベスト</div>
-                  <div className={`text-xl font-bold tabular-nums ${best != null ? d.text : 'text-slate-300'}`}>
+                  <div className="text-[11px] text-slate-600">ベスト</div>
+                  <div className={`text-xl font-bold tabular-nums ${best != null ? d.text : 'text-slate-600'}`}>
                     {best != null ? formatTime(best) : '--:--'}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-400">ぜんかい</div>
+                  <div className="text-[11px] text-slate-600">ぜんかい</div>
                   <div className="text-xl font-bold text-slate-700 tabular-nums">
                     {last != null ? formatTime(last) : '--:--'}
                   </div>
@@ -1915,7 +1943,7 @@ function RecordsScreen({ stats, bestTimes, daily, onBack }) {
 
               <div className="mt-4 border-t border-slate-100 pt-3">
                 <MiniBarChart history={history} deck={d} />
-                <div className="mt-1 text-center text-[11px] text-slate-400">
+                <div className="mt-1 text-center text-[11px] text-slate-600">
                   さいきんの タイム（ひくいほど はやい）
                 </div>
               </div>
@@ -1926,7 +1954,7 @@ function RecordsScreen({ stats, bestTimes, daily, onBack }) {
 
       <button
         onClick={onBack}
-        className="mt-8 inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-700 bg-white border border-slate-200 px-5 py-2.5 rounded-xl shadow-sm transition-all active:scale-95"
+        className="mt-8 inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-700 bg-white border border-slate-200 px-5 py-2.5 rounded-xl shadow-sm transition-all active:scale-95"
       >
         <Icon path={ICON.arrowLeft} size={18} />
         もどる
@@ -1935,9 +1963,66 @@ function RecordsScreen({ stats, bestTimes, daily, onBack }) {
   );
 }
 
+// 5-5. モーダル（せってい・インストール案内）の共通の作法（§4）
+//   ・Esc で閉じる … 端末の「もどる」と同じ onClose に つなぎます。
+//     別に閉じる処理を書くと、Esc と「もどる」で挙動が ずれます。
+//   ・フォーカスを 中に 閉じこめる … Tab で 後ろの画面へ 逃げないように。
+//   ・閉じたら、開く前に さわっていたボタンへ フォーカスを もどす。
+function useModalA11y(open, onClose) {
+  const boxRef = useRef(null);
+  const openerRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    openerRef.current = document.activeElement;
+
+    const box = boxRef.current;
+    // 開いた直後は 中の さいしょのボタンへ（読み上げも ここから 始まります）
+    const focusables = () =>
+      box
+        ? Array.from(
+            box.querySelectorAll(
+              'button:not([disabled]), a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            )
+          )
+        : [];
+    const first = focusables()[0];
+    if (first) first.focus();
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const items = focusables();
+      if (items.length === 0) return;
+      const firstEl = items[0];
+      const lastEl = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === firstEl) {
+        e.preventDefault();
+        lastEl.focus();
+      } else if (!e.shiftKey && document.activeElement === lastEl) {
+        e.preventDefault();
+        firstEl.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      const opener = openerRef.current;
+      if (opener && typeof opener.focus === 'function') opener.focus();
+    };
+  }, [open, onClose]);
+
+  return boxRef;
+}
+
 // 6-14. せってい（おと切りかえ・記録を消す）モーダル
 function SettingsModal({ open, onClose, effectsOn, onToggleEffects, onResetRecords }) {
   const [confirming, setConfirming] = useState(false);
+  const boxRef = useModalA11y(open, onClose);
   // モーダルを閉じるたびに「消す確認」の状態はリセット
   useEffect(() => {
     if (!open) setConfirming(false);
@@ -1949,12 +2034,16 @@ function SettingsModal({ open, onClose, effectsOn, onToggleEffects, onResetRecor
       onClick={onClose}
     >
       <div
+        ref={boxRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
         className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-full max-w-sm animate-pop"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 mb-4 text-slate-800">
           <Icon path={ICON.gear} size={20} />
-          <h3 className="text-lg font-bold">せってい</h3>
+          <h3 id="settings-title" className="text-lg font-bold">せってい</h3>
         </div>
 
         {/* おと・バイブの ON/OFF */}
@@ -1968,7 +2057,7 @@ function SettingsModal({ open, onClose, effectsOn, onToggleEffects, onResetRecor
           </span>
           <span
             className={`relative inline-flex items-center w-12 h-7 rounded-full transition-colors ${
-              effectsOn ? 'bg-emerald-500' : 'bg-slate-300'
+              effectsOn ? 'bg-emerald-700' : 'bg-slate-500'
             }`}
           >
             <span
@@ -1989,19 +2078,19 @@ function SettingsModal({ open, onClose, effectsOn, onToggleEffects, onResetRecor
           </button>
         ) : (
           <div className="mb-3">
-            <p className="text-sm text-slate-500 mb-3 leading-relaxed">
+            <p className="text-sm text-slate-600 mb-3 leading-relaxed">
               ベストタイム・れんぞく記録・カレンダー・スタンプを すべて さくじょします。
               もとに もどせません。ほんとうに けしますか？
             </p>
             <button
               onClick={onResetRecords}
-              className="w-full font-bold text-white bg-rose-500 hover:bg-rose-600 px-4 py-3 rounded-xl shadow-sm transition-all active:scale-95 mb-2"
+              className="w-full font-bold text-white bg-rose-600 hover:bg-rose-700 px-4 py-3 rounded-xl shadow-sm transition-all active:scale-95 mb-2"
             >
               けす
             </button>
             <button
               onClick={() => setConfirming(false)}
-              className="w-full font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl transition-all active:scale-95"
+              className="w-full font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl transition-all active:scale-95"
             >
               やめる
             </button>
@@ -2066,6 +2155,7 @@ const INSTALL_STEPS = {
 };
 
 function InstallGuideModal({ open, platform, onClose }) {
+  const boxRef = useModalA11y(open, onClose);
   if (!open) return null;
   const guide = INSTALL_STEPS[platform] || INSTALL_STEPS.desktop;
   return (
@@ -2074,18 +2164,22 @@ function InstallGuideModal({ open, platform, onClose }) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-full max-w-sm max-h-[85vh] overflow-auto animate-pop"
+        ref={boxRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="install-guide-title"
+        className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-full max-w-sm max-h-[85vh] overflow-auto scroll-area animate-pop"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 mb-4 text-slate-800">
           <Icon path={ICON.download} size={20} />
-          <h3 className="text-lg font-bold">{guide.title}</h3>
+          <h3 id="install-guide-title" className="text-lg font-bold">{guide.title}</h3>
         </div>
 
         <ol className="space-y-3 mb-4">
           {guide.steps.map((s, i) => (
             <li key={i} className="flex gap-3 items-start">
-              <span className="shrink-0 w-6 h-6 rounded-full bg-emerald-500 text-white text-sm font-bold flex items-center justify-center">
+              <span className="shrink-0 w-6 h-6 rounded-full bg-emerald-700 text-white text-sm font-bold flex items-center justify-center">
                 {i + 1}
               </span>
               <span className="text-slate-700 leading-relaxed">{s}</span>
@@ -2094,7 +2188,7 @@ function InstallGuideModal({ open, platform, onClose }) {
         </ol>
 
         {guide.note && (
-          <p className="text-sm text-slate-500 leading-relaxed bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-4">
+          <p className="text-sm text-slate-600 leading-relaxed bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-4">
             {guide.note}
           </p>
         )}
@@ -2372,7 +2466,8 @@ function MainBoard() {
   const showFooter = screen !== 'play';
 
   return (
-    <div className="h-full flex flex-col">
+    // app-shell … 横向きにしたときノッチ側が欠けないよう左右に安全余白を足す（§2-3）
+    <div className="app-shell h-full flex flex-col">
       <Header onHome={goHome} onOpenSettings={openSettings} />
 
       <main className="flex-1 flex flex-col overflow-hidden min-h-0">

@@ -1,0 +1,37 @@
+{
+  "$comment": "品質ゲートの設定。scripts/check-project.mjs が読みます。",
+  "appName": "けいさんカード",
+  "repoName": "Keisan-Card",
+  "type": "A",
+  "$comment_type": "A型＝単一HTML完結（ビルドあり・自己ホスト）。GIGA Standard v5 Part II Phase 2",
+
+  "entryHtml": ["index.html", "offline.html"],
+  "serviceWorker": "sw.js",
+  "manifest": "manifest.webmanifest",
+  "cachePrefix": "keisan-",
+
+  "generated": ["js/app.js", "css/style.css", "vendor/"],
+  "sources": ["src/App.jsx", "src/styles.css", "tailwind.config.js"],
+
+  "budgets": {
+    "$comment": "校内Wi-Fiで40人同時を想定（Part I §8）",
+    "initialJsKB": 300,
+    "totalAssetsKB": 1024,
+    "maxFileLines": 5000,
+    "maxFileKB": 400,
+    "maxImageKB": 150,
+    "maxPwaIconKB": 60,
+    "maxFaviconKB": 30,
+    "cdnExecutableBytes": 0
+  },
+
+  "notApplicable": {
+    "$comment": "「対象外」は理由とセットで書く。理由が書けないものは対象外ではない。",
+    "canvasDpr": "Canvas を使っていない（絵はすべて インライン SVG）",
+    "printCss": "印刷して配るアプリではない（画面でカードをめくる）",
+    "presentationMode": "一斉提示ではなく 児童ひとりずつの練習。カードの式は clamp() で画面いっぱいに出る",
+    "rubyColor": "ふりがな（ruby/rt）を使っていない。全文が ひらがな",
+    "serverGuards": "サーバーを持たない。個人情報を扱わない",
+    "oauthScopes": "GAS を使っていない"
+  }
+}

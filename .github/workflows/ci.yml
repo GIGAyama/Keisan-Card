@@ -1,0 +1,31 @@
+name: CI
+
+# pull_request と push の両方で動かす。
+# push（main）だけだと、PR の時点で落ちていることに気づけない。
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 測定用の playwright / sharp は CI では要らない（重いだけ）
+      - name: 依存を入れる
+        run: npm ci --omit=optional
+
+      # 1. 生成物が原本と食いちがっていないか
+      #    （src/ を直して `npm run build` を忘れたまま push すると ここで落ちる。
+      #      GitHub Pages はビルドを走らせないので、これを見張らないと
+      #      「直したのに直らない」が起きる）
+      # 2. Part I の検査（scripts/check-project.mjs）
+      # 3. 中核ロジックのテスト
+      - name: 品質ゲート
+        run: npm run check

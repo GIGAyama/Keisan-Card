@@ -1,0 +1,33 @@
+# 依存パッケージ（npm install で入る）
+node_modules/
+
+# ビルドの作業用
+dist/
+.cache/
+
+# 秘密情報・環境ごとの設定（絶対にコミットしない）
+.env
+.env.*
+.clasp.json
+.clasprc.json
+
+# OS・エディタ
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# 測定の出力
+tools/measure-out/
+
+# ⚠️ css/ js/ vendor/ は .gitignore に入れないこと。
+#    GitHub Pages はこのリポジトリの中身を そのまま配るだけで、
+#    ビルドを走らせない。除外すると 配信先にファイルが無くなり、
+#    アプリが起動しなくなる。
+#    そのかわり CI（.github/workflows/ci.yml）が
+#    `node tools/build.mjs --check` で「原本を直して build を忘れていないか」
+#    を見張っている。
+
+# 測定の生データ
+measure-report.json

@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # ビルドに使う npm パッケージ。月に1回だけ見る。
+  # （毎週にすると、授業で使っているアプリに 意味のない PR が積み上がる）
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    # メジャー更新は自動で上げない。React のメジャーが上がると
+    # vendor/ に置いている UMD の作りが変わり、ある日突然 起動しなくなる。
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

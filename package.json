@@ -21,6 +21,6 @@
   },
   "optionalDependencies": {
     "playwright": "1.62.1",
-    "sharp": "0.33.5"
+    "sharp": "0.35.3"
   }
 }

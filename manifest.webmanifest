@@ -6,9 +6,9 @@
   "dir": "ltr",
 
   "_comment_id": "id はこのアプリの『背番号』。同じサイト（gigayama.github.io）に置いた他のアプリと絶対に重ならないよう、リポジトリ名と同じ絶対パスを必ず書くこと。省略すると start_url が代わりに背番号として使われ、start_url を少し直しただけで別アプリ扱いになったり、似た構成の別アプリと取り違えられて『ページが他のアプリに開かれる』原因になる。このリポジトリをコピーして別アプリを作るときは、id・scope・start_url を必ず新しいフォルダ名に書き換えること。",
-  "id": "/Keisan-Card/",
-  "start_url": "/Keisan-Card/?source=pwa",
-  "scope": "/Keisan-Card/",
+  "id": "./",
+  "start_url": "./?source=pwa",
+  "scope": "./",
 
   "display": "standalone",
   "display_override": ["standalone", "fullscreen", "minimal-ui"],

@@ -176,7 +176,20 @@ export function checkCss(files) {
 }
 
 /* --- PWA（§3） ------------------------------------------------------- */
-export function checkManifest(manifestText, repoName) {
+/**
+ * 正しい値は「どこで配信するか」で変わる。
+ *
+ * 独自ドメイン（CNAME あり）だと、アプリはサブドメインの直下に置かれる。
+ *   https://keisan-card.giga-school.com/
+ * ここで /Keisan-Card/ のままにすると scope がページの URL を含まなくなり、
+ * manifest ごと無視されて PWA としてインストールできなくなる。
+ *
+ * CNAME が無ければ従来どおり共有オリジンのサブディレクトリ配信なので、
+ * リポジトリ名の絶対パスでないと同居する別アプリと取り違えられる。
+ *
+ * 相対パス（"./"）はどちらの配信でも自分のアプリを指すので、いつでも通す。
+ */
+export function checkManifest(manifestText, repoName, hasCname = false) {
   const out = [];
   let m;
   try {
@@ -185,12 +198,15 @@ export function checkManifest(manifestText, repoName) {
     return [ng('PWA_MANIFEST_JSON', `manifest.webmanifest が JSON として読めない：${e.message}`)];
   }
   const want = `/${repoName}/`;
+  const wanted = hasCname ? '相対パス（"./"）かサブドメイン直下（"/"）' : `リポジトリ名の絶対パス（${want}）`;
+  const okPath = (v) => String(v).startsWith('./')
+    || (hasCname ? /^\/(\?|#|$)/.test(String(v)) : String(v).startsWith(want));
   for (const k of ['id', 'scope', 'start_url']) {
     const v = m[k];
     if (!v) out.push(ng('PWA_MANIFEST_ID', `manifest に ${k} が無い（§3-1）`));
-    else if (!String(v).startsWith(want)) {
+    else if (!okPath(v)) {
       out.push(
-        ng('PWA_MANIFEST_ID', `manifest の ${k} = "${v}" がリポジトリ名の絶対パス（${want}）で始まっていない（§3-1）`)
+        ng('PWA_MANIFEST_ID', `manifest の ${k} = "${v}" が ${wanted} になっていない（§3-1）`)
       );
     }
   }

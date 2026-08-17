@@ -76,7 +76,7 @@ add(V5.checkSecrets(textFiles));
 add(V5.checkDependencies(textFiles));
 add(V5.checkViewport(textFiles));
 add(V5.checkCss(textFiles));
-add(V5.checkManifest(read(cfg.manifest), cfg.repoName));
+add(V5.checkManifest(read(cfg.manifest), cfg.repoName, existsSync(join(ROOT, 'CNAME'))));
 add(V5.checkServiceWorker(read(cfg.serviceWorker), cfg.cachePrefix));
 add(V5.checkPwaHead(read('index.html')));
 for (const h of cfg.entryHtml) add(V5.checkCsp(read(h), h));

@@ -168,6 +168,27 @@ test('manifest の id をコピー元のまま放置すると 落ちる', () => 
     icons: [{ purpose: 'any' }, { purpose: 'maskable' }],
   });
   assert.ok(hasError(V5.checkManifest(bad, 'Keisan-Card'), 'PWA_MANIFEST_ID'));
+
+  // 独自ドメイン（CNAME あり）ではサブドメイン直下に置かれるので、
+  // リポジトリ名の絶対パスが残っているほうが壊れた形になる。
+  const absolute = JSON.stringify({
+    id: '/Keisan-Card/',
+    scope: '/Keisan-Card/',
+    start_url: '/Keisan-Card/?source=pwa',
+    icons: [{ purpose: 'any' }, { purpose: 'maskable' }],
+  });
+  assert.ok(hasError(V5.checkManifest(absolute, 'Keisan-Card', true), 'PWA_MANIFEST_ID'));
+  assert.ok(!hasError(V5.checkManifest(absolute, 'Keisan-Card', false), 'PWA_MANIFEST_ID'));
+
+  // 相対パスはどちらの配信でも自分のアプリを指すので、どちらでも通る。
+  const relative = JSON.stringify({
+    id: './',
+    scope: './',
+    start_url: './?source=pwa',
+    icons: [{ purpose: 'any' }, { purpose: 'maskable' }],
+  });
+  assert.ok(!hasError(V5.checkManifest(relative, 'Keisan-Card', true), 'PWA_MANIFEST_ID'));
+  assert.ok(!hasError(V5.checkManifest(relative, 'Keisan-Card', false), 'PWA_MANIFEST_ID'));
 });
 
 test('CSP に frame-ancestors を書くと 落ちる（<meta> では無視される）', () => {

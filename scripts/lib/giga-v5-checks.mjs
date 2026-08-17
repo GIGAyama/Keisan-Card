@@ -391,10 +391,16 @@ export function checkSecrets(files) {
     [/[\w.+-]+@(?!example\.)[\w-]+\.[a-z]{2,}/, 'メールアドレス'],
     [/\b1[A-Za-z0-9_-]{43}\b/, 'スプレッドシートID らしき文字列'],
   ];
+  // プライバシーポリシーと利用規約は、運用者の連絡先を書くことが目的のページである。
+  // ここでメールアドレスを咎めると「載せると CI が落ちる／消すと法的に不備」になり、
+  // どちらにも進めない。この2ページだけメールアドレスの検査から外す。
+  // 鍵・トークン・ID の検査はこの2ページでもそのまま効かせる。
+  const LEGAL_PAGES = /^(privacy|terms)\.html$/;
   for (const f of files) {
     if (/^(node_modules|vendor|\.git)\//.test(f.path)) continue;
     const body = stripComments(f.text);
     for (const [re, name] of patterns) {
+      if (name === 'メールアドレス' && LEGAL_PAGES.test(f.path)) continue;
       const m = re.exec(body);
       if (m) {
         // 値そのものは報告に転記しない。ファイル名と行番号だけ（Part III 規則7）

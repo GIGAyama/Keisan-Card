@@ -15,12 +15,13 @@
  *  この Service Worker は localStorage を一切 操作しません。
  * ===================================================================== */
 
-const VERSION = 'v1.4.1';
+const VERSION = 'v1.5.0';
 
 // このアプリ専用の目じるし。
-// キャッシュ置き場（CacheStorage）は gigayama.github.io というサイト全体で
-// 共有されていて、同じサイトに置いた他のアプリの保存も一緒に見えてしまう。
-// 「自分の名札が付いた保存だけ」を消すために、必ずこの接頭辞を使うこと。
+// いまは独自ドメイン keisan-card.giga-school.com がこのアプリ専用のオリジンだが、
+// 旧配信元の gigayama.github.io ではキャッシュ置き場（CacheStorage）がサイト全体で
+// 共有されていて、同じサイトに置いた他のアプリの保存も一緒に見えていた。
+// 同居する配置に戻したときに他アプリを巻き込まないよう、接頭辞で絞る形は変えない。
 const CACHE_PREFIX = 'keisan-';
 const CORE_CACHE = CACHE_PREFIX + 'core-' + VERSION;
 const RUNTIME_CACHE = CACHE_PREFIX + 'runtime-' + VERSION;
@@ -36,6 +37,8 @@ const CORE_ASSETS = [
   './js/pwa-boot.js',
   './install-hook.js',
   './studyLog.js',
+  './records-export.html',
+  './js/records-export.js',
   './manifest.webmanifest',
   './offline.html',
   './favicon.png',
@@ -106,6 +109,10 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(req).catch(() =>
         caches.open(CORE_CACHE).then(async (c) => {
+          // まず「ひらこうとした画面そのもの」を探す。これを飛ばして
+          // index.html から返すと、圏外では利用規約を開いてもアプリが出る。
+          const exact = await c.match(req);
+          if (exact) return exact;
           // 保存した本体があればそれを出す（オフラインでも ふだんどおり使える）
           const app = await c.match('./index.html', { ignoreSearch: true });
           if (app) return app;

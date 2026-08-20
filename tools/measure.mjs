@@ -35,10 +35,11 @@ const ROOT = rootArg
   : join(dirname(fileURLToPath(import.meta.url)), '..');
 // PWA まわりの測定は このリポジトリのときだけ意味がある
 const PWA_CHECKS = !rootArg;
-// 本番と同じ「リポジトリ名のサブフォルダ」で配る。
-// ここを '/' にすると manifest の scope（/Keisan-Card/）と食いちがい、
-// PWA まわりの測定が まるごと 意味を失う。
-const BASE = '/Keisan-Card/';
+// 本番と同じ「ドメイン直下」で配る。
+// 独自ドメイン keisan-card.giga-school.com ではアプリがドメイン直下に置かれるので、
+// ここを旧構成の '/Keisan-Card/' にすると、本番では 404 になるパスが
+// 測定環境でだけ通り、壊れているのに「合格」と出る。
+const BASE = '/';
 const PORT = 8321;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const APP_URL = ORIGIN + BASE;

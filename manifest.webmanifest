@@ -5,7 +5,7 @@
   "lang": "ja",
   "dir": "ltr",
 
-  "_comment_id": "id はこのアプリの『背番号』。同じサイト（gigayama.github.io）に置いた他のアプリと絶対に重ならないよう、リポジトリ名と同じ絶対パスを必ず書くこと。省略すると start_url が代わりに背番号として使われ、start_url を少し直しただけで別アプリ扱いになったり、似た構成の別アプリと取り違えられて『ページが他のアプリに開かれる』原因になる。このリポジトリをコピーして別アプリを作るときは、id・scope・start_url を必ず新しいフォルダ名に書き換えること。",
+  "_comment_id": "id はこのアプリの『背番号』。独自ドメイン keisan-card.giga-school.com へ移り、アプリはドメイン直下で配信されるので \"./\" を書く。旧構成（gigayama.github.io/Keisan-Card/）のようなリポジトリ名の絶対パスに戻すと、scope がページの URL を含まなくなって manifest ごと無視され、PWA としてインストールできなくなる。id を省略するのも不可。省略すると start_url が代わりに背番号として使われ、start_url を少し直しただけで別アプリ扱いになる。",
   "id": "./",
   "start_url": "./?source=pwa",
   "scope": "./",

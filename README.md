@@ -339,7 +339,7 @@ PWAアイコン **60 KB**・favicon **30 KB**／CDN から取る実行コード 
 
 ## 📱 アプリとしてインストールするときの注意（重要）
 
-`https://gigayama.github.io/` には たくさんのアプリが 同居しています。
+旧配信元の `https://gigayama.github.io/` には たくさんのアプリが 同居していました。
 ブラウザ（とくに Chromebook）は **`manifest.webmanifest` の `id` と `scope`**
 でアプリを見分けているため、ここが ほかのアプリと かぶっていると
 **「このアプリのページが、別のアプリのウィンドウで開いてしまう」**

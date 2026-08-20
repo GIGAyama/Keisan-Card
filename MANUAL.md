@@ -20,7 +20,7 @@
 
 ## 1. まず ひらく
 
-配られたアドレス（`https://gigayama.github.io/Keisan-Card/`）を ひらくだけです。
+配られたアドレス（`https://keisan-card.giga-school.com/`）を ひらくだけです。
 インストールも、アカウントも、ログインも いりません。
 
 ---

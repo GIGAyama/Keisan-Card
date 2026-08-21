@@ -15,7 +15,7 @@
  *  この Service Worker は localStorage を一切 操作しません。
  * ===================================================================== */
 
-const VERSION = 'v6b72c290'; /* __APP_VERSION__ */
+const VERSION = 'v93c20d4a'; /* __APP_VERSION__ */
 
 // このアプリ専用の目じるし。
 // いまは独自ドメイン keisan-card.giga-school.com がこのアプリ専用のオリジンだが、
@@ -39,6 +39,7 @@ const CORE_ASSETS = [
   './studyLog.js',
   './records-export.html',
   './js/records-export.js',
+  './js/records-hub-client.js',
   './manifest.webmanifest',
   './offline.html',
   './favicon.png',

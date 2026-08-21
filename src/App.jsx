@@ -974,7 +974,7 @@ function Footer() {
       © {year} けいさんカード{' '}
       {/* このリンクは既定で 35×11px しかない。tap-44 で当たり判定だけを広げる（§2-9） */}
       <a
-        href="https://note.com/cute_borage86"
+        href="https://giga-school.com"
         target="_blank"
         rel="noopener noreferrer"
         className="tap-44 text-amber-700 hover:text-amber-800 underline underline-offset-2 transition-all active:scale-95 inline-block"

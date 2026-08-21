@@ -218,4 +218,4 @@ iPad の Safari には「インストール」の しくみが ありません�
 
 ---
 
-© 2026 けいさんカード — GIGA山　<https://note.com/cute_borage86>
+© 2026 けいさんカード — GIGA山　<https://giga-school.com>

@@ -18,7 +18,8 @@
 import { readFileSync, statSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname, relative, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import * as V5 from './lib/giga-v5-checks.mjs';
+// このリポジトリ独自の検査（正本 Part I は scripts/check-standard.mjs が受け持つ）
+import * as V5 from './lib/local-checks.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const cfg = JSON.parse(readFileSync(join(ROOT, 'quality.config.json'), 'utf8'));

@@ -1,0 +1,6 @@
+{
+  "swPath": "sw.js",
+  "baseDir": ".",
+  "versionConst": "VERSION",
+  "shellConst": "CORE_ASSETS"
+}

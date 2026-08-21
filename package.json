@@ -6,10 +6,11 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build": "node tools/build.mjs",
+    "build": "node tools/build.mjs && node tools/build-sw.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "node tools/build.mjs --check && node scripts/check-project.mjs && node --test tests/*.test.mjs",
-    "measure": "node tools/measure.mjs"
+    "check": "node tools/build.mjs --check && node tools/build-sw.mjs --check && node scripts/check-project.mjs && node --test tests/*.test.mjs",
+    "measure": "node tools/measure.mjs",
+    "build:sw": "node tools/build-sw.mjs"
   },
   "devDependencies": {
     "@babel/core": "7.29.7",

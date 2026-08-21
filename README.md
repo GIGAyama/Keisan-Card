@@ -414,4 +414,4 @@ PWAアイコン **60 KB**・favicon **30 KB**／CDN から取る実行コード 
 ## 🙋 さくしゃ
 
 © けいさんカード — **GIGA山**
-note: <https://note.com/cute_borage86>
+ホームページ: <https://giga-school.com>

@@ -7,9 +7,20 @@
  *    scripts/lib/giga-v5-checks.mjs … Part I の検査（読めば分かる分）
  *    quality.config.json         … このリポジトリ固有の値と「対象外」の理由
  *
- *  ※ フリート共通の正本（scripts/lib/project-quality.mjs）は
- *    このリポジトリにはまだ置いていない。置かれたら、ここから
- *    合成できるように 分けてある（正本は 丸ごと差し替えで受ける）。
+ *  ※ ここにはかつて「フリート共通の正本（scripts/lib/project-quality.mjs）は
+ *    まだ置いていない。置かれたら合成できるように分けてある」と書いてあった。
+ *    その計画は取りやめた（2026-08-22 に艦隊を実測した結果）。あの正本は
+ *    8本にコピーがあるが 3世代に割れていて（297行が6本・158行が1本・
+ *    64行が1本）、export する名前もばらばら（runQualityChecks / run /
+ *    該当なし）。丸ごと差し替えで受けられる形になっていない。実際、
+ *    任意参照していた5本では、コピーを置いても検査が1件も増えないか
+ *    例外で落ちるかのどちらかだった。
+ *
+ *    共通化は、ひとつの大きな正本ではなく用件ごとの小さな正本で進める。
+ *    いま GIGAyama.github.io/standards/ にあるのは
+ *      standards/lib/giga-v5-checks.mjs … Part I の検査
+ *      standards/lib/check-secrets.mjs  … 秘密の直書き
+ *    の2つで、どちらも丸ごと1ファイルで完結し、無ければコマンドごと失敗する。
  *
  *  読んでも分からないもの（コントラスト・タップ領域・CSP 違反・
  *  Service Worker の挙動・オフライン）は tools/measure.mjs で 実測する。

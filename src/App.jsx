@@ -980,6 +980,14 @@ function Footer() {
         className="tap-44 text-amber-700 hover:text-amber-800 underline underline-offset-2 transition-all active:scale-95 inline-block"
       >
         GIGA山
+      </a>{' '}
+      <a
+        href="https://giga-school.com/apps/keisan-card/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="tap-44 text-amber-700 hover:text-amber-800 underline underline-offset-2 transition-all active:scale-95 inline-block"
+      >
+        使い方を読む
       </a>
     </footer>
   );

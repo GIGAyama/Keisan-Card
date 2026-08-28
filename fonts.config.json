@@ -1,0 +1,42 @@
+{
+  "families": [
+    {
+      "family": "Zen Kaku Gothic New",
+      "weights": [
+        400,
+        500,
+        700,
+        900
+      ]
+    },
+    {
+      "family": "Zen Maru Gothic",
+      "weights": [
+        500,
+        700,
+        900
+      ]
+    },
+    {
+      "family": "Kosugi Maru",
+      "weights": [
+        400
+      ]
+    }
+  ],
+  "grades": [
+    1,
+    2
+  ],
+  "scan": [
+    "index.html",
+    "css",
+    "js",
+    "src"
+  ],
+  "outDir": "fonts",
+  "cssPath": "fonts.css",
+  "hrefPrefix": "./fonts/",
+  "copyright": "Copyright The Zen Kaku Gothic New Project Authors\nCopyright The Zen Maru Gothic Project Authors\nCopyright The Kosugi Maru Project Authors",
+  "license": "SIL Open Font License 1.1 — 全文は fonts/OFL.txt"
+}

@@ -22,8 +22,8 @@
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src 'self';
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    font-src 'self' https://fonts.gstatic.com;
+    style-src 'self' 'unsafe-inline';
+    font-src 'self';
     img-src 'self' data: blob:;
     connect-src 'self';
     worker-src 'self';
@@ -78,9 +78,10 @@
        ※ これは「見た目だけ」の依存です（§2-7）。学校のフィルタリングで
          届かなくても、端末側の日本語フォントに落ちるだけでアプリは動きます。
          動かなくなる「実行コード」は CDN から取っていません。 -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Zen+Maru+Gothic:wght@500;700;900&family=Kosugi+Maru&display=swap" rel="stylesheet" />
+  <!-- 書体は自分のところから配る（生成物。node tools/fonts/build-fonts.mjs で作り直す）。
+       ここに Google Fonts への link を戻さないこと。学校のフィルタが
+       塞ぐと書体が当たらず、塞ぎ方によっては画面そのものが出ない。 -->
+  <link rel="stylesheet" href="./fonts.css" />
 
   <!-- ===== スタイル（ビルド済み。原本は src/styles.css と tailwind.config.js） ===== -->
   <link rel="stylesheet" href="./css/style.css" />

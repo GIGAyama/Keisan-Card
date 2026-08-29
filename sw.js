@@ -15,7 +15,7 @@
  *  この Service Worker は localStorage を一切 操作しません。
  * ===================================================================== */
 
-const VERSION = 'v12f8a838'; /* __APP_VERSION__ */
+const VERSION = 'vd16b156f'; /* __APP_VERSION__ */
 
 // このアプリ専用の目じるし。
 // いまは独自ドメイン keisan-card.giga-school.com がこのアプリ専用のオリジンだが、

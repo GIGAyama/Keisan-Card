@@ -980,15 +980,15 @@ function Footer() {
         className="tap-44 text-amber-700 hover:text-amber-800 underline underline-offset-2 transition-all active:scale-95 inline-block"
       >
         GIGA山
-      </a>{' '}
-      <a
-        href="https://giga-school.com/apps/keisan-card/"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="tap-44 text-amber-700 hover:text-amber-800 underline underline-offset-2 transition-all active:scale-95 inline-block"
-      >
-        使い方を読む
       </a>
+      {/* ⚠️ 行き先のリンクを手で書かないこと。中身は正本の部品
+          standards/web/giga-app-links.js（配布物 web/giga-app-links.js）が
+          この中に出す。文言も並びも行き先も、あちらで決まっている。
+
+          ⚠️ data-links で「つかいかた」を外してある。このアプリにはまだ
+             docs/manual/ が無く、既定のまま出すと行き止まりのリンクになる。
+             マニュアルを書いたら、この属性ごと消すこと。 */}
+      <div data-giga-links data-links="terms,privacy" />
     </footer>
   );
 }

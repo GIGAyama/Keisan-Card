@@ -15,7 +15,7 @@
  *  この Service Worker は localStorage を一切 操作しません。
  * ===================================================================== */
 
-const VERSION = 'v12f8a838'; /* __APP_VERSION__ */
+const VERSION = 'v74656b09'; /* __APP_VERSION__ */
 
 // このアプリ専用の目じるし。
 // いまは独自ドメイン keisan-card.giga-school.com がこのアプリ専用のオリジンだが、
@@ -34,6 +34,10 @@ const CORE_ASSETS = [
   './fonts.css',
   './',
   './index.html',
+  // 利用規約・プライバシーの行き先を出す部品。並べておかないと、圏外で開いた
+  // ときだけリンクが 1 本も出ない（行き先そのものは開けなくても、どこにあるかは
+  // 見えているほうがいい）。
+  './web/giga-app-links.js',
   './css/style.css',
   './vendor/react.production.min.js',
   './vendor/react-dom.production.min.js',

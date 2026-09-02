@@ -985,10 +985,13 @@ function Footer() {
           standards/web/giga-app-links.js（配布物 web/giga-app-links.js）が
           この中に出す。文言も並びも行き先も、あちらで決まっている。
 
-          ⚠️ data-links で「つかいかた」を外してある。このアプリにはまだ
-             docs/manual/ が無く、既定のまま出すと行き止まりのリンクになる。
-             マニュアルを書いたら、この属性ごと消すこと。 */}
-      <span data-giga-links data-links="terms,privacy" />
+          data-links は付けない（既定の 3 本＝つかいかた・利用規約・
+          プライバシーを出す）。2026-09-02 に docs/manual/manual.md を
+          書いたので、「つかいかた」の行き先
+          （giga-school.com/apps/keisan-card/manual/）が実在する。
+          ⚠️ マニュアルを消すときは、ここに data-links="terms,privacy" を
+             戻すこと。戻し忘れると、行き止まりのリンクが 1 本残る。 */}
+      <span data-giga-links />
     </footer>
   );
 }

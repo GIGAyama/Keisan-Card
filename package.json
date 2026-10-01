@@ -21,7 +21,7 @@
     "terser": "5.49.1"
   },
   "optionalDependencies": {
-    "playwright": "1.62.1",
+    "playwright": "1.63.0",
     "sharp": "0.35.3"
   }
 }
